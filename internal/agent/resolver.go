@@ -89,6 +89,10 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			return nil, fmt.Errorf("agent not found: %s", agentKey)
 		}
 
+		if ag.Status != store.AgentStatusActive {
+			return nil, fmt.Errorf("agent %s is inactive", agentKey)
+		}
+
 		// Resolve provider
 		provider, err := deps.ProviderReg.Get(ag.Provider)
 		if err != nil {

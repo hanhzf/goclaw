@@ -335,6 +335,25 @@ func (s *Server) BroadcastEvent(event protocol.EventFrame) {
 	}
 }
 
+// DisconnectByPairing force-closes WebSocket connections authenticated via the
+// given pairing senderID and channel. Called after revoking a paired device so
+// that the revoked client cannot continue operating with its old role.
+func (s *Server) DisconnectByPairing(senderID, channel string) {
+	s.mu.RLock()
+	var targets []*Client
+	for _, c := range s.clients {
+		if c.pairedSenderID == senderID && c.pairedChannel == channel {
+			targets = append(targets, c)
+		}
+	}
+	s.mu.RUnlock()
+
+	for _, c := range targets {
+		slog.Info("disconnecting revoked paired device", "client", c.id, "sender_id", senderID, "channel", channel)
+		c.conn.Close()
+	}
+}
+
 func (s *Server) registerClient(c *Client) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

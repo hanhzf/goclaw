@@ -114,6 +114,8 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 		client.role = permissions.RoleOperator
 		client.authenticated = true
 		client.userID = params.UserID
+		client.pairedSenderID = params.SenderID
+		client.pairedChannel = "browser"
 		slog.Info("browser pairing authenticated", "sender_id", params.SenderID, "client", client.id)
 		r.sendConnectResponse(client, req.ID)
 		return

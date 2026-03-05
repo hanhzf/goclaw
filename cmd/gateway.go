@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/google/uuid"
+
 	"github.com/nextlevelbuilder/goclaw/internal/agent"
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
@@ -849,6 +851,61 @@ func runGateway() {
 			slog.Warn("failed to send pairing approval notification", "channel", channel, "chatID", chatID, "error", err)
 		}
 	})
+
+	// Wire pairing revocation → force disconnect active WebSocket sessions.
+	msgBus.Subscribe(bus.TopicPairingRevoked, func(event bus.Event) {
+		if event.Name != bus.EventPairingRevoked {
+			return
+		}
+		payload, ok := event.Payload.(bus.PairingRevokedPayload)
+		if !ok {
+			return
+		}
+		go server.DisconnectByPairing(payload.SenderID, payload.Channel)
+	})
+
+	// Cascade: when an agent becomes inactive, disable its linked channel instances.
+	if managedStores != nil && managedStores.ChannelInstances != nil {
+		ciStore := managedStores.ChannelInstances
+		msgBus.Subscribe(bus.TopicAgentStatusChanged, func(event bus.Event) {
+			if event.Name != bus.EventAgentStatusChanged {
+				return
+			}
+			payload, ok := event.Payload.(bus.AgentStatusChangedPayload)
+			if !ok || payload.NewStatus != store.AgentStatusInactive {
+				return
+			}
+			go func() {
+				agentID, err := uuid.Parse(payload.AgentID)
+				if err != nil {
+					return
+				}
+				all, err := ciStore.ListAll(context.Background())
+				if err != nil {
+					slog.Warn("cascade disable: failed to list channel instances", "error", err)
+					return
+				}
+				disabled := 0
+				for _, inst := range all {
+					if inst.AgentID == agentID && inst.Enabled {
+						if err := ciStore.Update(context.Background(), inst.ID, map[string]any{"enabled": false}); err != nil {
+							slog.Warn("cascade disable: failed to disable channel instance", "name", inst.Name, "error", err)
+						} else {
+							disabled++
+						}
+					}
+				}
+				if disabled > 0 {
+					slog.Info("cascade disabled channel instances for inactive agent", "agent_id", payload.AgentID, "count", disabled)
+					// Trigger channel reload so disabled instances are stopped.
+					msgBus.Broadcast(bus.Event{
+						Name:    protocol.EventCacheInvalidate,
+						Payload: bus.CacheInvalidatePayload{Kind: bus.CacheKindChannelInstances},
+					})
+				}
+			}()
+		})
+	}
 
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

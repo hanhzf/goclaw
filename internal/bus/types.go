@@ -72,7 +72,28 @@ const (
 	TopicCacheMCP              = "cache:mcp"
 	TopicChannelStreaming      = "channel-streaming"
 	TopicConfigChanged         = "config:changed"
+	TopicPairingRevoked        = "pairing:revoked"
+	TopicAgentStatusChanged    = "agent:status_changed"
 )
+
+// EventPairingRevoked is the event name broadcast when a paired device is revoked.
+const EventPairingRevoked = "pairing.revoked"
+
+// PairingRevokedPayload identifies the revoked device.
+type PairingRevokedPayload struct {
+	SenderID string `json:"sender_id"`
+	Channel  string `json:"channel"`
+}
+
+// EventAgentStatusChanged is broadcast when an agent's status changes (e.g., active → inactive).
+const EventAgentStatusChanged = "agent.status_changed"
+
+// AgentStatusChangedPayload carries agent status transition info for cascade operations.
+type AgentStatusChangedPayload struct {
+	AgentID   string `json:"agent_id"`
+	OldStatus string `json:"old_status"`
+	NewStatus string `json:"new_status"`
+}
 
 // CacheInvalidatePayload signals cache layers to evict stale entries.
 // Used with protocol.EventCacheInvalidate events.
