@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
@@ -35,6 +36,7 @@ type SystemPromptConfig struct {
 	HasSpawn      bool                   // spawn tool available?
 	HasTeam        bool                   // agent belongs to a team? (skips generic spawn section)
 	TeamWorkspace  string                 // absolute path to team shared workspace (empty if not in team)
+	TeamMembers    []store.TeamMemberData // team member roster for task assignment
 	ContextFiles  []bootstrap.ContextFile // bootstrap files for # Project Context
 	ExtraPrompt   string                 // extra system prompt (subagent context, etc.)
 	AgentType     string                 // "open" or "predefined" — affects context file framing
@@ -223,6 +225,11 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 	// 6.3. ## Team Workspace (when agent belongs to a team) — skip during bootstrap
 	if !cfg.IsBootstrap && hasTeamWorkspace(cfg.ToolNames) {
 		lines = append(lines, buildTeamWorkspaceSection(cfg.TeamWorkspace)...)
+	}
+
+	// 6.4. ## Team Members — inject roster so agent knows who to assign tasks to
+	if !cfg.IsBootstrap && len(cfg.TeamMembers) > 0 {
+		lines = append(lines, buildTeamMembersSection(cfg.TeamMembers)...)
 	}
 
 	// 6.5 ## Sandbox (matching TS sandboxInfo section) — skip during bootstrap

@@ -159,6 +159,14 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 		mcpToolDescs = nil
 	}
 
+	// Resolve team members so agent knows who to assign tasks to.
+	var teamMembers []store.TeamMemberData
+	if hasTeamTools && l.teamStore != nil && l.agentUUID != uuid.Nil {
+		if team, _ := l.teamStore.GetTeamForAgent(ctx, l.agentUUID); team != nil {
+			teamMembers, _ = l.teamStore.ListMembers(ctx, team.ID)
+		}
+	}
+
 	systemPrompt := BuildSystemPrompt(SystemPromptConfig{
 		AgentID:                l.id,
 		Model:                  l.model,
@@ -174,6 +182,7 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 		HasSpawn:               l.tools != nil && hasSpawn,
 		HasTeam:                hasTeamTools,
 		TeamWorkspace:          tools.ToolTeamWorkspaceFromCtx(ctx),
+		TeamMembers:            teamMembers,
 		HasSkillSearch:         hasSkillSearch,
 		HasSkillManage:         l.skillEvolve && hasSkillManage,
 		HasMCPToolSearch:       hasMCPToolSearch,
