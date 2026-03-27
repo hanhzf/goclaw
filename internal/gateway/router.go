@@ -145,7 +145,10 @@ func (r *MethodRouter) handleConnect(ctx context.Context, client *Client, req *p
 			// Non-owner with gateway token: resolve tenant via hint or membership
 			hint := params.TenantID
 			if hint == "" {
-				hint = params.TenantScope
+				hint = params.TenantHint
+			}
+			if hint == "" {
+				hint = params.TenantScope // deprecated
 			}
 			tid, errCode := r.resolveTenantHint(ctx, hint, params.UserID)
 			if errCode != "" {
