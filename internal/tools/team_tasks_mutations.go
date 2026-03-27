@@ -279,7 +279,21 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 	if assigneeName == "" {
 		assigneeName = t.manager.agentKeyFromID(ctx, assigneeID)
 	}
-	return NewResult(fmt.Sprintf("Task created: %s (id=%s, task_number=%d, status=%s, assignee=%s)", subject, task.ID, task.TaskNumber, status, assigneeName))
+	msg := fmt.Sprintf("Task created: %s (id=%s, task_number=%d, status=%s, assignee=%s)", subject, task.ID, task.TaskNumber, status, assigneeName)
+
+	// Soft guardrail: warn if subject suggests multiple deliverables.
+	// Only checks subject (not description) — detailed descriptions are fine.
+	if subject != "" {
+		subjLower := strings.ToLower(subject)
+		hasCompound := strings.Contains(subjLower, " and ") &&
+			(strings.Contains(subjLower, "implement") || strings.Contains(subjLower, "create") ||
+				strings.Contains(subjLower, "build") || strings.Contains(subjLower, "design") ||
+				strings.Contains(subjLower, "write") || strings.Contains(subjLower, "develop"))
+		if hasCompound {
+			msg += "\n\nWarning: This task subject suggests multiple deliverables. Consider splitting into separate tasks if they need different skills."
+		}
+	}
+	return NewResult(msg)
 }
 
 func (t *TeamTasksTool) executeComment(ctx context.Context, args map[string]any) *Result {

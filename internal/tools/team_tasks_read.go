@@ -173,11 +173,11 @@ func (t *TeamTasksTool) buildCreateHint(ctx context.Context, teamID, leadAgentID
 		}
 		sb.WriteString(entry + "\n")
 	}
-	sb.WriteString("\nBefore creating a task:\n")
-	sb.WriteString("1. DESCRIPTION: Include clear objective, relevant context, constraints, and expected output format. The member will only see this description — make it self-contained.\n")
-	sb.WriteString("2. COMPLEXITY: If a task requires multiple steps or different skills, break it into separate tasks with blocked_by.\n")
-	sb.WriteString("3. MODEL MATCH: Assign complex reasoning/analysis tasks to members with stronger models. Simple tasks can go to any.\n")
-	sb.WriteString("4. INDEPENDENCE: Each task must be completable without asking the lead for clarification.")
+	sb.WriteString("\nBefore creating a task, check:\n")
+	sb.WriteString("1. SKILL TEST: Does task need 2+ different skills (research+writing, design+coding)? → Split into separate tasks with blocked_by\n")
+	sb.WriteString("2. SCOPE TEST: Could a member finish this in one focused session? If not, break it down\n")
+	sb.WriteString("3. SELF-CONTAINED: Include objective, context, constraints, expected output. Description can be detailed — that's OK. Member only sees this\n")
+	sb.WriteString("4. MODEL MATCH: Complex reasoning → stronger model. Simple tasks → any model")
 	return sb.String()
 }
 
