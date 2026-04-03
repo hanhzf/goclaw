@@ -66,6 +66,11 @@ ARG ENABLE_NODE=false
 ARG ENABLE_FULL_SKILLS=false
 ARG ENABLE_CLAUDE_CLI=false
 
+# Copy pinned Python deps (cleaned up after install).
+# requirements-base.txt: shared deps for ENABLE_PYTHON and ENABLE_FULL_SKILLS.
+# requirements-skills.txt: additional deps only for ENABLE_FULL_SKILLS.
+COPY docker/requirements-base.txt docker/requirements-skills.txt /tmp/
+
 # Install ca-certificates + wget (healthcheck) + optional runtimes.
 # ENABLE_FULL_SKILLS=true pre-installs all skill deps (larger image, no on-demand install needed).
 # Otherwise, skill packages are installed on-demand via the admin UI.
@@ -77,14 +82,14 @@ RUN set -eux; \
     if [ "$ENABLE_FULL_SKILLS" = "true" ]; then \
         apk add --no-cache python3 py3-pip nodejs npm pandoc github-cli poppler-utils bash; \
         pip3 install --no-cache-dir --break-system-packages \
-            pypdf openpyxl pandas python-pptx markitdown defusedxml lxml \
-            pdfplumber pdf2image anthropic; \
-        npm install -g --cache /tmp/npm-cache docx pptxgenjs; \
+            -r /tmp/requirements-base.txt -r /tmp/requirements-skills.txt; \
+        npm install -g --cache /tmp/npm-cache docx@^9.6.1 pptxgenjs@^4.0.1; \
         rm -rf /tmp/npm-cache /root/.cache /var/cache/apk/*; \
     else \
         if [ "$ENABLE_PYTHON" = "true" ]; then \
             apk add --no-cache python3 py3-pip; \
-            pip3 install --no-cache-dir --break-system-packages edge-tts; \
+            pip3 install --no-cache-dir --break-system-packages \
+                -r /tmp/requirements-base.txt; \
         fi; \
         if [ "$ENABLE_NODE" = "true" ] || [ "$ENABLE_CLAUDE_CLI" = "true" ]; then \
             apk add --no-cache nodejs npm; \
@@ -93,7 +98,8 @@ RUN set -eux; \
     if [ "$ENABLE_CLAUDE_CLI" = "true" ]; then \
         npm install -g --cache /tmp/npm-cache @anthropic-ai/claude-code; \
         rm -rf /tmp/npm-cache; \
-    fi
+    fi; \
+    rm -f /tmp/requirements-base.txt /tmp/requirements-skills.txt
 
 # Non-root user
 RUN adduser -D -u 1000 -h /app goclaw
