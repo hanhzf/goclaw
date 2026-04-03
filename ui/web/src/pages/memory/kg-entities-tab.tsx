@@ -31,7 +31,7 @@ export function KGEntitiesTab({ agentId, userId }: KGEntitiesTabProps) {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [extractOpen, setExtractOpen] = useState(false);
   const [dedupOpen, setDedupOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const [viewMode, setViewMode] = useState<ViewMode>("graph");
 
   const { entities, loading, fetching, refresh, deleteEntity, getEntityWithRelations, extractFromText } = useKnowledgeGraph({
     agentId,

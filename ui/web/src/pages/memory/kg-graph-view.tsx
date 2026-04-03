@@ -6,7 +6,8 @@ import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/use-ui-store";
 import type { KGEntity, KGRelation } from "@/types/knowledge-graph";
 
-const GRAPH_LIMIT = 200;
+const NODE_LIMIT_OPTIONS = [100, 200, 300, 500] as const;
+const DEFAULT_NODE_LIMIT = 200;
 const NODE_R = 5;
 const DOUBLE_CLICK_MS = 280;
 
@@ -63,6 +64,7 @@ export function KGGraphView({ entities: allEntities, relations: allRelations, on
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 600, height: 400 });
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [nodeLimit, setNodeLimit] = useState(DEFAULT_NODE_LIMIT);
 
   // Double-click detection refs
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,12 +84,12 @@ export function KGGraphView({ entities: allEntities, relations: allRelations, on
 
   // --- Limit entities by degree centrality ---
   const totalCount = allEntities.length;
-  const isLimited = totalCount > GRAPH_LIMIT;
+  const isLimited = totalCount > nodeLimit;
   const entities = useMemo(() => {
-    if (!isLimited) return allEntities;
+    if (totalCount <= nodeLimit) return allEntities;
     const deg = computeDegreeMap(allEntities, allRelations);
-    return [...allEntities].sort((a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0)).slice(0, GRAPH_LIMIT);
-  }, [allEntities, allRelations, isLimited]);
+    return [...allEntities].sort((a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0)).slice(0, nodeLimit);
+  }, [allEntities, allRelations, totalCount, nodeLimit]);
 
   const entityMap = useMemo(() => new Map(entities.map((e) => [e.id, e])), [entities]);
 
@@ -235,9 +237,8 @@ export function KGGraphView({ entities: allEntities, relations: allRelations, on
     setSelectedNodeId(null);
   }, []);
 
-  // --- Zoom to fit after engine stops ---
   const handleEngineStop = useCallback(() => {
-    graphRef.current?.zoomToFit(300, 30);
+    // No auto zoom — initial view from warmupTicks is already good
   }, []);
 
   // --- Empty state ---
@@ -291,11 +292,18 @@ export function KGGraphView({ entities: allEntities, relations: allRelations, on
         <span>{t("kg.graphView.nodes", { count: totalCount })}</span>
         <span>{t("kg.graphView.edges", { count: allRelations.length })}</span>
         {isLimited && (
-          <span title={t("kg.graphView.limitHint", { limit: GRAPH_LIMIT, total: totalCount })}>
-            · {t("kg.graphView.limitNote", { limit: GRAPH_LIMIT, total: totalCount })}
-          </span>
+          <span>· {t("kg.graphView.limitNote", { limit: nodeLimit, total: totalCount })}</span>
         )}
         <div className="flex-1" />
+        <select
+          value={nodeLimit}
+          onChange={(e) => setNodeLimit(Number(e.target.value))}
+          className="h-5 rounded border bg-background px-1 text-[10px]"
+        >
+          {NODE_LIMIT_OPTIONS.map((n) => (
+            <option key={n} value={n}>{n} nodes</option>
+          ))}
+        </select>
         <Button variant="ghost" size="sm" className="h-6 px-1.5" onClick={() => graphRef.current?.zoomToFit(300, 20)}>
           <Maximize2 className="h-3 w-3" />
         </Button>
