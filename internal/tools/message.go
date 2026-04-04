@@ -146,10 +146,11 @@ func (t *MessageTool) Execute(ctx context.Context, args map[string]any) *Result 
 	// If we found embedded media and bus is available, prefer bus path (supports media attachments).
 	if len(embeddedMedia) > 0 && t.msgBus != nil {
 		outMsg := bus.OutboundMessage{
-			Channel: channel,
-			ChatID:  target,
-			Content: message,
-			Media:   embeddedMedia,
+			TenantID: store.TenantIDFromContext(ctx),
+			Channel:  channel,
+			ChatID:   target,
+			Content:  message,
+			Media:    embeddedMedia,
 		}
 		if isGroupContext(ctx) {
 			outMsg.Metadata = map[string]string{"group_id": target}
@@ -172,9 +173,10 @@ func (t *MessageTool) Execute(ctx context.Context, args map[string]any) *Result 
 	// can distinguish group sends from DMs.
 	if t.msgBus != nil {
 		outMsg := bus.OutboundMessage{
-			Channel: channel,
-			ChatID:  target,
-			Content: message,
+			TenantID: store.TenantIDFromContext(ctx),
+			Channel:  channel,
+			ChatID:   target,
+			Content:  message,
 		}
 		if isGroupContext(ctx) {
 			outMsg.Metadata = map[string]string{"group_id": target}
@@ -237,6 +239,7 @@ func (t *MessageTool) sendMedia(ctx context.Context, channel, target, filePath s
 	}
 
 	t.msgBus.PublishOutbound(bus.OutboundMessage{
+		TenantID: store.TenantIDFromContext(ctx),
 		Channel:  channel,
 		ChatID:   target,
 		Media:    []bus.MediaAttachment{{URL: filePath, ContentType: mimeFromPath(filePath)}},

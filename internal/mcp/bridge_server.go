@@ -12,6 +12,7 @@ import (
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
+	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
 )
 
@@ -144,6 +145,7 @@ func forwardMediaToOutbound(ctx context.Context, msgBus *bus.MessageBus, toolNam
 		meta = map[string]string{"group_id": chatID}
 	}
 	msgBus.PublishOutbound(bus.OutboundMessage{
+		TenantID: store.TenantIDFromContext(ctx),
 		Channel:  channel,
 		ChatID:   chatID,
 		Media:    attachments,

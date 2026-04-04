@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"regexp"
 
+	"github.com/google/uuid"
+
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
@@ -22,9 +24,10 @@ func isValidSenderID(id string) bool {
 }
 
 // PairingApproveCallback is called after a pairing is approved.
+// tenantID scopes the notification to the correct channel instance.
 // channel is the channel name (e.g., "telegram"), chatID is the chat to notify,
 // senderID identifies the paired entity (e.g., "group:XXXX" for group pairings).
-type PairingApproveCallback func(ctx context.Context, channel, chatID, senderID string)
+type PairingApproveCallback func(ctx context.Context, tenantID uuid.UUID, channel, chatID, senderID string)
 
 // PairingMethods handles device.pair.request, device.pair.approve, device.pair.list, device.pair.revoke.
 type PairingMethods struct {
@@ -122,7 +125,8 @@ func (m *PairingMethods) handleApprove(ctx context.Context, client *gateway.Clie
 	// Notify the user via channel (matching TS notifyPairingApproved).
 	// Use Background context: the CLI client may disconnect before the notification is sent.
 	if m.onApprove != nil && paired != nil {
-		go m.onApprove(context.Background(), paired.Channel, paired.ChatID, paired.SenderID)
+		tenantID := store.TenantIDFromContext(ctx)
+		go m.onApprove(context.Background(), tenantID, paired.Channel, paired.ChatID, paired.SenderID)
 	}
 
 	if m.broadcaster != nil {

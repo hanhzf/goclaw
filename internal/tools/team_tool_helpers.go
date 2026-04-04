@@ -193,20 +193,21 @@ func (m *TeamToolManager) createEscalationTask(ctx context.Context, team *store.
 	))
 
 	// Notify channel if possible.
-	m.notifyChannelReview(task)
+	m.notifyChannelReview(ctx, task)
 
 	return NewResult(fmt.Sprintf("Action requires approval. Escalation task created: %s (id=%s). A human must approve before this action can proceed.", subject, task.Identifier))
 }
 
 // notifyChannelReview publishes an outbound message to the origin channel about a pending review.
-func (m *TeamToolManager) notifyChannelReview(task *store.TeamTaskData) {
+func (m *TeamToolManager) notifyChannelReview(ctx context.Context, task *store.TeamTaskData) {
 	if m.msgBus == nil || task.Channel == "" || task.ChatID == "" {
 		return
 	}
 	content := fmt.Sprintf("🔔 Escalation: \"%s\" requires human review (task %s).", task.Subject, task.Identifier)
 	m.msgBus.PublishOutbound(bus.OutboundMessage{
-		Channel: task.Channel,
-		ChatID:  task.ChatID,
-		Content: content,
+		TenantID: store.TenantIDFromContext(ctx),
+		Channel:  task.Channel,
+		ChatID:   task.ChatID,
+		Content:  content,
 	})
 }

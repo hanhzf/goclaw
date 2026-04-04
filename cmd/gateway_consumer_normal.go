@@ -115,7 +115,7 @@ func processNormalMessage(
 		if idx := strings.IndexByte(senderNumericID, '|'); idx > 0 {
 			senderNumericID = senderNumericID[:idx]
 		}
-		channelType := deps.ChannelMgr.ChannelTypeForName(msg.Channel)
+		channelType := deps.ChannelMgr.ChannelTypeForName(msg.TenantID, msg.Channel)
 		if channelType == "" {
 			channelType = msg.Channel // fallback to instance name
 		}
@@ -140,7 +140,7 @@ func processNormalMessage(
 		if idx := strings.IndexByte(senderNumeric, '|'); idx > 0 {
 			senderNumeric = senderNumeric[:idx]
 		}
-		chType := deps.ChannelMgr.ChannelTypeForName(msg.Channel)
+		chType := deps.ChannelMgr.ChannelTypeForName(msg.TenantID, msg.Channel)
 		if chType == "" {
 			chType = msg.Channel
 		}
@@ -162,6 +162,7 @@ func processNormalMessage(
 				"limit", qResult.Limit,
 			)
 			deps.MsgBus.PublishOutbound(bus.OutboundMessage{
+				TenantID: msg.TenantID,
 				Channel:  msg.Channel,
 				ChatID:   msg.ChatID,
 				Content:  formatQuotaExceeded(qResult),
@@ -196,7 +197,7 @@ func processNormalMessage(
 	// Enable streaming when the channel supports it (so agent emits chunk events).
 	// The channel decides per chat type via separate dm_stream / group_stream flags.
 	isGroup := peerKind == string(sessions.PeerGroup)
-	enableStream := deps.ChannelMgr != nil && deps.ChannelMgr.IsStreamingChannel(msg.Channel, isGroup)
+	enableStream := deps.ChannelMgr != nil && deps.ChannelMgr.IsStreamingChannel(msg.TenantID, msg.Channel, isGroup)
 
 	// Group chats allow concurrent runs (multiple users can chat simultaneously).
 	maxConcurrent := 1
@@ -228,10 +229,10 @@ func processNormalMessage(
 	if lk := msg.Metadata["local_key"]; lk != "" {
 		chatIDForRun = lk
 	}
-	blockReply := deps.ChannelMgr != nil && deps.ChannelMgr.ResolveBlockReply(msg.Channel, deps.Cfg.Gateway.BlockReply)
+	blockReply := deps.ChannelMgr != nil && deps.ChannelMgr.ResolveBlockReply(msg.TenantID, msg.Channel, deps.Cfg.Gateway.BlockReply)
 	toolStatus := deps.Cfg.Gateway.ToolStatus == nil || *deps.Cfg.Gateway.ToolStatus // default true
 	if deps.ChannelMgr != nil {
-		deps.ChannelMgr.RegisterRun(runID, msg.Channel, chatIDForRun, messageID, outMeta, enableStream, blockReply, toolStatus)
+		deps.ChannelMgr.RegisterRun(runID, msg.TenantID, msg.Channel, chatIDForRun, messageID, outMeta, enableStream, blockReply, toolStatus)
 	}
 
 	// Group-aware system prompt: help the LLM adapt tone and behavior for group chats.
@@ -283,6 +284,7 @@ func processNormalMessage(
 				status := deps.Agents.GetActivity(sessionKey)
 				reply := agent.FormatStatusReply(status, locale)
 				deps.MsgBus.PublishOutbound(bus.OutboundMessage{
+					TenantID: msg.TenantID,
 					Channel:  msg.Channel,
 					ChatID:   msg.ChatID,
 					Content:  reply,
@@ -295,6 +297,7 @@ func processNormalMessage(
 					slog.Info("inbound: cancelled runs via intent classify",
 						"session", sessionKey, "aborted", aborted)
 					deps.MsgBus.PublishOutbound(bus.OutboundMessage{
+						TenantID: msg.TenantID,
 						Channel:  msg.Channel,
 						ChatID:   msg.ChatID,
 						Content:  i18n.T(locale, i18n.MsgCancelledReply),
@@ -312,6 +315,7 @@ func processNormalMessage(
 					slog.Info("inbound: injected steer message",
 						"session", sessionKey)
 					deps.MsgBus.PublishOutbound(bus.OutboundMessage{
+						TenantID: msg.TenantID,
 						Channel:  msg.Channel,
 						ChatID:   msg.ChatID,
 						Content:  i18n.T(locale, i18n.MsgInjectedAck),
@@ -351,7 +355,7 @@ func processNormalMessage(
 		Media:             reqMedia,
 		ForwardMedia:      fwdMedia,
 		Channel:           msg.Channel,
-		ChannelType:       resolveChannelType(deps.ChannelMgr, msg.Channel),
+		ChannelType:       resolveChannelType(deps.ChannelMgr, msg.TenantID, msg.Channel),
 		ChatTitle:         msg.Metadata["chat_title"],
 		ChatID:            msg.ChatID,
 		PeerKind:          peerKind,
@@ -369,7 +373,7 @@ func processNormalMessage(
 	})
 
 	// Handle result asynchronously to not block the flush callback.
-	go func(agentKey, channel, chatID, session, rID, peerKind, inboundContent string, meta map[string]string, blockReplyEnabled bool, ptd *tools.PendingTeamDispatch) {
+	go func(agentKey, channel, chatID, session, rID, peerKind, inboundContent string, tenantID uuid.UUID, meta map[string]string, blockReplyEnabled bool, ptd *tools.PendingTeamDispatch) {
 		outcome := <-outCh
 
 		// Release team create lock — tasks already visible in DB, other goroutines can list.
@@ -395,6 +399,7 @@ func processNormalMessage(
 			if errors.Is(outcome.Err, context.Canceled) {
 				slog.Info("inbound: run cancelled", "channel", channel, "session", session)
 				deps.MsgBus.PublishOutbound(bus.OutboundMessage{
+					TenantID: tenantID,
 					Channel:  channel,
 					ChatID:   chatID,
 					Content:  "",
@@ -404,6 +409,7 @@ func processNormalMessage(
 			}
 			slog.Error("inbound: agent run failed", "error", outcome.Err, "channel", channel)
 			deps.MsgBus.PublishOutbound(bus.OutboundMessage{
+				TenantID: tenantID,
 				Channel:  channel,
 				ChatID:   chatID,
 				Content:  formatAgentError(outcome.Err),
@@ -421,6 +427,7 @@ func processNormalMessage(
 				"session", session,
 			)
 			deps.MsgBus.PublishOutbound(bus.OutboundMessage{
+				TenantID: tenantID,
 				Channel:  channel,
 				ChatID:   chatID,
 				Content:  "",
@@ -436,6 +443,7 @@ func processNormalMessage(
 			slog.Debug("inbound: dedup final message (matches last block reply)",
 				"channel", channel, "run_id", rID)
 			deps.MsgBus.PublishOutbound(bus.OutboundMessage{
+				TenantID: tenantID,
 				Channel:  channel,
 				ChatID:   chatID,
 				Content:  "",
@@ -455,6 +463,7 @@ func processNormalMessage(
 
 		// Publish response back to the channel
 		outMsg := bus.OutboundMessage{
+			TenantID: tenantID,
 			Channel:  channel,
 			ChatID:   chatID,
 			Content:  replyContent,
@@ -469,5 +478,5 @@ func processNormalMessage(
 		if deps.TeamStore != nil && channel != tools.ChannelSystem && channel != tools.ChannelTeammate && channel != tools.ChannelDashboard {
 			go autoSetFollowup(ctx, deps.TeamStore, deps.AgentStore, agentKey, channel, chatID, replyContent)
 		}
-	}(agentID, msg.Channel, msg.ChatID, sessionKey, runID, peerKind, msg.Content, outMeta, blockReply, ptd)
+	}(agentID, msg.Channel, msg.ChatID, sessionKey, runID, peerKind, msg.Content, msg.TenantID, outMeta, blockReply, ptd)
 }

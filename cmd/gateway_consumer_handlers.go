@@ -43,7 +43,7 @@ func handleSubagentAnnounce(
 	origChannel := msg.Metadata[tools.MetaOriginChannel]
 	origPeerKind := msg.Metadata[tools.MetaOriginPeerKind]
 	origLocalKey := msg.Metadata[tools.MetaOriginLocalKey]
-	origChannelType := resolveChannelType(deps.ChannelMgr, origChannel)
+	origChannelType := resolveChannelType(deps.ChannelMgr, msg.TenantID, origChannel)
 	parentAgent := msg.Metadata[tools.MetaParentAgent]
 	if parentAgent == "" {
 		parentAgent = "default"
@@ -170,7 +170,7 @@ func handleTeammateMessage(
 	if origChatID == "" {
 		origChatID = msg.ChatID // fallback to inbound ChatID (team UUID for old dispatches)
 	}
-	origChannelType := resolveChannelType(deps.ChannelMgr, origChannel)
+	origChannelType := resolveChannelType(deps.ChannelMgr, msg.TenantID, origChannel)
 	targetAgent := msg.AgentID // dispatch sets AgentID to the target agent key
 	if targetAgent == "" {
 		targetAgent = deps.Cfg.ResolveDefaultAgentID()
@@ -528,6 +528,7 @@ func handleStopCommand(
 		}
 	}
 	deps.MsgBus.PublishOutbound(bus.OutboundMessage{
+		TenantID: msg.TenantID,
 		Channel:  msg.Channel,
 		ChatID:   msg.ChatID,
 		Content:  feedback,

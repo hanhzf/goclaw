@@ -204,11 +204,14 @@ func (l *InstanceLoader) LoadedNames() map[string]struct{} {
 // If autoStart is true, the channel is started immediately (used by Reload).
 // If false, the caller is responsible for starting (used by LoadAll, where StartAll handles it).
 func (l *InstanceLoader) loadInstance(ctx context.Context, inst store.ChannelInstanceData, autoStart bool) error {
-	l.loaded[inst.Name] = struct{}{}
+	// Qualified name for manager map key — prevents cross-tenant collision.
+	// Factory still receives bare inst.Name so c.Name() stays unchanged (preserves session keys, pairings, etc.).
+	qName := qualifiedChannelName(inst.TenantID, inst.Name)
+	l.loaded[qName] = struct{}{}
 
 	factory, ok := l.factories[inst.ChannelType]
 	if !ok {
-		l.manager.RecordHealth(inst.Name, NewChannelHealthForType(
+		l.manager.RecordHealth(qName, NewChannelHealthForType(
 			inst.ChannelType,
 			ChannelHealthStateFailed,
 			"Unsupported channel type",
@@ -216,7 +219,7 @@ func (l *InstanceLoader) loadInstance(ctx context.Context, inst store.ChannelIns
 			ChannelFailureKindConfig,
 			false,
 		))
-		slog.Warn("no factory for channel type", "type", inst.ChannelType, "name", inst.Name)
+		slog.Warn("no factory for channel type", "type", inst.ChannelType, "name", inst.Name, "tenant_id", inst.TenantID)
 		return nil
 	}
 
@@ -224,13 +227,14 @@ func (l *InstanceLoader) loadInstance(ctx context.Context, inst store.ChannelIns
 	// Older UI versions saved select-based bool fields as strings.
 	cfg := coerceStringBools(inst.Config)
 
+	// Factory receives bare name — c.Name() stays as inst.Name for data compatibility.
 	ch, err := factory(inst.Name, inst.Credentials, cfg, l.msgBus, l.pairingSvc)
 	if err != nil {
-		l.manager.RecordFailureForType(inst.Name, inst.ChannelType, "", err)
+		l.manager.RecordFailureForType(qName, inst.ChannelType, "", err)
 		return err
 	}
 	if ch == nil {
-		l.manager.RecordHealth(inst.Name, NewChannelHealthForType(
+		l.manager.RecordHealth(qName, NewChannelHealthForType(
 			inst.ChannelType,
 			ChannelHealthStateFailed,
 			"Missing credentials",
@@ -250,7 +254,7 @@ func (l *InstanceLoader) loadInstance(ctx context.Context, inst store.ChannelIns
 		var err error
 		ag, err = l.agentStore.GetByID(instCtx, inst.AgentID)
 		if err != nil {
-			l.manager.RecordFailureForType(inst.Name, inst.ChannelType, "", fmt.Errorf("agent %s not found for channel %s: %w", inst.AgentID, inst.Name, err))
+			l.manager.RecordFailureForType(qName, inst.ChannelType, "", fmt.Errorf("agent %s not found for channel %s: %w", inst.AgentID, inst.Name, err))
 			return fmt.Errorf("agent %s not found for channel %s: %w", inst.AgentID, inst.Name, err)
 		}
 		base.SetAgentID(ag.AgentKey)
@@ -322,20 +326,20 @@ func (l *InstanceLoader) loadInstance(ctx context.Context, inst store.ChannelIns
 				"channel", inst.Name, "agent_id", inst.AgentID, "attempted_provider", attemptedProvider)
 		}
 	}
-	l.manager.RegisterChannel(inst.Name, ch)
+	l.manager.RegisterChannel(qName, ch)
 
 	// Start the channel if requested (Reload path). LoadAll defers to StartAll.
 	if autoStart {
 		if err := ch.Start(ctx); err != nil {
-			l.manager.recordChannelStartFailure(inst.Name, ch, "", err)
+			l.manager.recordChannelStartFailure(qName, ch, "", err)
 			slog.Error("channel instance start failed", "name", inst.Name, "error", err)
 			// Still registered — will show as not running.
 		} else {
-			l.manager.RecordHealth(inst.Name, snapshotChannelHealth(ch))
+			l.manager.RecordHealth(qName, snapshotChannelHealth(ch))
 		}
 	}
 
 	slog.Info("channel instance loaded",
-		"name", inst.Name, "type", inst.ChannelType, "agent_id", inst.AgentID)
+		"name", inst.Name, "type", inst.ChannelType, "agent_id", inst.AgentID, "tenant_id", inst.TenantID)
 	return nil
 }

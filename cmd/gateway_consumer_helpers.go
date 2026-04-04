@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/nextlevelbuilder/goclaw/internal/agent"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
@@ -171,9 +173,9 @@ func mediaToMarkdownFromPaths(files []bus.MediaFile, cfg *config.Config) string 
 
 // resolveChannelType returns the platform type for a channel instance name.
 // Returns empty string if channelMgr is nil or channel name is empty.
-func resolveChannelType(channelMgr *channels.Manager, name string) string {
+func resolveChannelType(channelMgr *channels.Manager, tenantID uuid.UUID, name string) string {
 	if channelMgr == nil || name == "" {
 		return ""
 	}
-	return channelMgr.ChannelTypeForName(name)
+	return channelMgr.ChannelTypeForName(tenantID, name)
 }

@@ -172,6 +172,7 @@ func processSubagentAnnounceLoop(
 			if !errors.Is(outcome.Err, context.Canceled) {
 				slog.Error("subagent announce: lead run failed", "error", outcome.Err, "batch_size", len(entries))
 				msgBus.PublishOutbound(bus.OutboundMessage{
+					TenantID: r.TenantID,
 					Channel:  r.OrigChannel,
 					ChatID:   r.OrigChatID,
 					Content:  formatAgentError(outcome.Err),
@@ -186,6 +187,7 @@ func processSubagentAnnounceLoop(
 					out = ""
 				}
 				outMsg := bus.OutboundMessage{
+					TenantID: r.TenantID,
 					Channel:  r.OrigChannel,
 					ChatID:   r.OrigChatID,
 					Content:  out,

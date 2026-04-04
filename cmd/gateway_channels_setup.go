@@ -183,7 +183,7 @@ func wireChannelEventSubscribers(
 
 	// Wire pairing approval notification → channel (matching TS notifyPairingApproved).
 	botName := cfg.ResolveDisplayName("default")
-	pairingMethods.SetOnApprove(func(ctx context.Context, channel, chatID, senderID string) {
+	pairingMethods.SetOnApprove(func(ctx context.Context, tenantID uuid.UUID, channel, chatID, senderID string) {
 		// Browser/internal channels use WebSocket — UI polls approval status directly.
 		if channels.IsInternalChannel(channel) {
 			slog.Debug("pairing approved for internal channel, skipping notification", "channel", channel)
@@ -193,12 +193,13 @@ func wireChannelEventSubscribers(
 		// Group pairings need group_id metadata so channels (e.g. Zalo) route to group API.
 		if strings.HasPrefix(senderID, "group:") {
 			msgBus.PublishOutbound(bus.OutboundMessage{
+				TenantID: tenantID,
 				Channel:  channel,
 				ChatID:   chatID,
 				Content:  msg,
 				Metadata: map[string]string{"group_id": chatID},
 			})
-		} else if err := channelMgr.SendToChannel(ctx, channel, chatID, msg); err != nil {
+		} else if err := channelMgr.SendToChannel(ctx, tenantID, channel, chatID, msg); err != nil {
 			slog.Warn("failed to send pairing approval notification", "channel", channel, "chatID", chatID, "error", err)
 		}
 	})

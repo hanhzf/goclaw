@@ -335,9 +335,10 @@ func (t *TaskTicker) processTeamFollowups(ctx context.Context, tasks []store.Tea
 		content := fmt.Sprintf("Reminder (%s): %s", countLabel, task.FollowupMessage)
 
 		if !t.msgBus.TryPublishOutbound(bus.OutboundMessage{
-			Channel: task.FollowupChannel,
-			ChatID:  task.FollowupChatID,
-			Content: content,
+			TenantID: store.TenantIDFromContext(ctx),
+			Channel:  task.FollowupChannel,
+			ChatID:   task.FollowupChatID,
+			Content:  content,
 		}) {
 			slog.Warn("task_ticker: outbound buffer full, skipping followup", "task_id", task.ID)
 			continue

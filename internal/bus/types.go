@@ -35,6 +35,7 @@ type InboundMessage struct {
 // OutboundMessage represents a message to be sent to a channel.
 type OutboundMessage struct {
 	Channel  string            `json:"channel"`
+	TenantID uuid.UUID         `json:"tenant_id,omitempty"` // tenant scope for dispatch routing
 	ChatID   string            `json:"chat_id"`
 	Content  string            `json:"content"`
 	Media    []MediaAttachment `json:"media,omitempty"`    // optional media attachments

@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 )
 
@@ -39,12 +41,14 @@ func (m *Manager) dispatchOutbound(ctx context.Context) {
 				continue
 			}
 
+			// Qualified lookup: tenantID + bare channel name → manager map key.
+			qName := qualifiedChannelName(msg.TenantID, msg.Channel)
 			m.mu.RLock()
-			channel, exists := m.channels[msg.Channel]
+			channel, exists := m.channels[qName]
 			m.mu.RUnlock()
 
 			if !exists {
-				slog.Warn("unknown channel for outbound message", "channel", msg.Channel)
+				slog.Warn("unknown channel for outbound message", "channel", msg.Channel, "tenant_id", msg.TenantID)
 				continue
 			}
 
@@ -79,6 +83,7 @@ func (m *Manager) dispatchOutbound(ctx context.Context) {
 				if len(msg.Media) > 0 {
 					notifyMsg := bus.OutboundMessage{
 						Channel:  msg.Channel,
+						TenantID: msg.TenantID,
 						ChatID:   msg.ChatID,
 						Content:  formatChannelSendError(err),
 						Metadata: sendErrorMeta(msg.Metadata),
@@ -122,9 +127,11 @@ func (m *Manager) WebhookHandlers() []WebhookRoute {
 }
 
 // SendToChannel delivers a message to a specific channel by name.
-func (m *Manager) SendToChannel(ctx context.Context, channelName, chatID, content string) error {
+// Uses tenantID to build the qualified map key for lookup.
+func (m *Manager) SendToChannel(ctx context.Context, tenantID uuid.UUID, channelName, chatID, content string) error {
+	qName := qualifiedChannelName(tenantID, channelName)
 	m.mu.RLock()
-	channel, exists := m.channels[channelName]
+	channel, exists := m.channels[qName]
 	m.mu.RUnlock()
 
 	if !exists {
@@ -132,9 +139,10 @@ func (m *Manager) SendToChannel(ctx context.Context, channelName, chatID, conten
 	}
 
 	msg := bus.OutboundMessage{
-		Channel: channelName,
-		ChatID:  chatID,
-		Content: content,
+		Channel:  channelName,
+		TenantID: tenantID,
+		ChatID:   chatID,
+		Content:  content,
 	}
 
 	return channel.Send(ctx, msg)

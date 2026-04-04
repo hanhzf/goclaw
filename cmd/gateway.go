@@ -539,7 +539,9 @@ func runGateway() {
 	// Wire channel sender + tenant checker on message tool (now that channelMgr exists)
 	if t, ok := toolsReg.Get("message"); ok {
 		if cs, ok := t.(tools.ChannelSenderAware); ok {
-			cs.SetChannelSender(channelMgr.SendToChannel)
+			cs.SetChannelSender(func(ctx context.Context, channel, chatID, content string) error {
+				return channelMgr.SendToChannel(ctx, store.TenantIDFromContext(ctx), channel, chatID, content)
+			})
 		}
 		if tc, ok := t.(tools.ChannelTenantCheckerAware); ok {
 			tc.SetChannelTenantChecker(channelMgr.ChannelTenantID)
@@ -689,9 +691,10 @@ func runGateway() {
 				})
 			} else {
 				msgBus.PublishOutbound(bus.OutboundMessage{
-					Channel: meta.Channel,
-					ChatID:  meta.ChatID,
-					Content: content,
+					TenantID: meta.TenantID,
+					Channel:  meta.Channel,
+					ChatID:   meta.ChatID,
+					Content:  content,
 				})
 			}
 		})
@@ -833,6 +836,7 @@ func runGateway() {
 				UserID:    payload.UserID,
 				LeadAgent: leadAgentKey,
 				PeerKind:  payload.PeerKind,
+				TenantID:  evt.TenantID,
 			})
 		})
 		slog.Info("team progress notification subscriber registered")

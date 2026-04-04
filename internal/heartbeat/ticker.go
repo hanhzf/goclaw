@@ -322,9 +322,10 @@ func (t *Ticker) runOne(ctx context.Context, hb store.AgentHeartbeat) {
 	// [8] Deliver to channel.
 	if hb.Channel != nil && *hb.Channel != "" && hb.ChatID != nil && *hb.ChatID != "" {
 		t.msgBus.PublishOutbound(bus.OutboundMessage{
-			Channel: *hb.Channel,
-			ChatID:  *hb.ChatID,
-			Content: cleaned,
+			TenantID: store.TenantIDFromContext(ctx),
+			Channel:  *hb.Channel,
+			ChatID:   *hb.ChatID,
+			Content:  cleaned,
 		})
 	}
 

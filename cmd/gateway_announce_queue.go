@@ -182,6 +182,7 @@ func processAnnounceLoop(
 					out = ""
 				}
 				outMsg := bus.OutboundMessage{
+					TenantID: store.TenantIDFromContext(ctx),
 					Channel:  r.OrigChannel,
 					ChatID:   r.OrigChatID,
 					Content:  out,

@@ -40,9 +40,10 @@ func wireSlowToolNotifySubscriber(msgBus *bus.MessageBus) {
 
 		content := fmt.Sprintf("⏳ %s: tool %s running longer than usual (>%ds)", agentEvent.AgentID, tool, thresholdSec)
 		msgBus.PublishOutbound(bus.OutboundMessage{
-			Channel: agentEvent.Channel,
-			ChatID:  agentEvent.ChatID,
-			Content: content,
+			TenantID: agentEvent.TenantID,
+			Channel:  agentEvent.Channel,
+			ChatID:   agentEvent.ChatID,
+			Content:  content,
 		})
 	})
 }

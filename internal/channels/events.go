@@ -107,6 +107,7 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 				outMeta := copyRoutingMeta(rc.Metadata)
 				outMeta["placeholder_update"] = "true"
 				m.bus.PublishOutbound(bus.OutboundMessage{
+					TenantID: rc.TenantID,
 					Channel:  rc.ChannelName,
 					ChatID:   rc.ChatID,
 					Content:  statusText,
@@ -277,6 +278,7 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 		}
 
 		m.bus.PublishOutbound(bus.OutboundMessage{
+			TenantID: rc.TenantID,
 			Channel:  rc.ChannelName,
 			ChatID:   rc.ChatID,
 			Content:  content,
@@ -291,9 +293,10 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 		maxAttempts := extractPayloadString(payload, "maxAttempts")
 		retryMsg := fmt.Sprintf("Provider busy, retrying... (%s/%s)", attempt, maxAttempts)
 		m.bus.PublishOutbound(bus.OutboundMessage{
-			Channel: rc.ChannelName,
-			ChatID:  rc.ChatID,
-			Content: retryMsg,
+			TenantID: rc.TenantID,
+			Channel:  rc.ChannelName,
+			ChatID:   rc.ChatID,
+			Content:  retryMsg,
 			Metadata: map[string]string{
 				"placeholder_update": "true",
 			},

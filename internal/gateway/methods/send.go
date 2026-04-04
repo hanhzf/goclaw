@@ -50,9 +50,10 @@ func (m *SendMethods) handleSend(ctx context.Context, client *gateway.Client, re
 	}
 
 	m.msgBus.PublishOutbound(bus.OutboundMessage{
-		Channel: params.Channel,
-		ChatID:  params.To,
-		Content: params.Message,
+		TenantID: store.TenantIDFromContext(ctx),
+		Channel:  params.Channel,
+		ChatID:   params.To,
+		Content:  params.Message,
 	})
 
 	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]any{

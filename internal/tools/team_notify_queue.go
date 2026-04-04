@@ -4,16 +4,19 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // NotifyRoutingMeta carries routing info for batched team notifications.
 type NotifyRoutingMeta struct {
-	Mode      string // "direct" or "leader"
+	Mode      string    // "direct" or "leader"
 	Channel   string
 	ChatID    string
 	UserID    string
-	LeadAgent string // agent key (only used in leader mode)
-	PeerKind  string // "group" or "direct" — routes to correct session (#266)
+	LeadAgent string    // agent key (only used in leader mode)
+	PeerKind  string    // "group" or "direct" — routes to correct session (#266)
+	TenantID  uuid.UUID // tenant scope for outbound dispatch routing
 }
 
 // TeamNotifyQueue batches team task notifications per chat with debounce,

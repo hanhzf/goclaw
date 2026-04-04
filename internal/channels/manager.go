@@ -12,6 +12,26 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
+// qualifiedChannelName creates a tenant-scoped key for the channel manager map.
+// In production, tenantID is always non-nil (master or specific tenant).
+// Zero UUID guard exists only for unit test ergonomics.
+func qualifiedChannelName(tenantID uuid.UUID, name string) string {
+	if tenantID == uuid.Nil {
+		return name
+	}
+	return tenantID.String() + ":" + name
+}
+
+// stripQualifiedPrefix extracts bare channel name from a qualified map key.
+// Production keys are always "tenantUUID:name" (36-char UUID + ":" + name).
+// Falls back to raw key for test/legacy entries without prefix.
+func stripQualifiedPrefix(qName string) string {
+	if len(qName) > 37 && qName[36] == ':' {
+		return qName[37:]
+	}
+	return qName
+}
+
 // ChannelStream is the per-run streaming handle stored on RunContext.
 // Each channel implementation returns a ChannelStream from CreateStream().
 // RunContext owns the stream so concurrent runs in the same group chat
@@ -28,6 +48,7 @@ type ChannelStream interface {
 
 // RunContext tracks an active agent run for streaming/reaction event forwarding.
 type RunContext struct {
+	TenantID          uuid.UUID // tenant scope for outbound dispatch routing
 	ChannelName       string
 	ChatID            string
 	MessageID         string            // platform message ID (string to support Feishu "om_xxx", Telegram "12345", etc.)
@@ -146,28 +167,30 @@ func (m *Manager) GetChannel(name string) (Channel, bool) {
 }
 
 // GetStatus returns the running status of all channels.
+// Keys are bare channel names (qualified prefix stripped for UI display).
 func (m *Manager) GetStatus() map[string]any {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	status := make(map[string]any, len(m.health)+len(m.channels))
-	for name, snapshot := range m.health {
-		status[name] = snapshot
+	for qName, snapshot := range m.health {
+		status[stripQualifiedPrefix(qName)] = snapshot
 	}
-	for name, channel := range m.channels {
-		status[name] = snapshotChannelHealth(channel)
+	for qName, channel := range m.channels {
+		status[stripQualifiedPrefix(qName)] = snapshotChannelHealth(channel)
 	}
 	return status
 }
 
 // GetEnabledChannels returns the names of all enabled channels.
+// Returns bare channel names (qualified prefix stripped for UI display).
 func (m *Manager) GetEnabledChannels() []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	names := make([]string, 0, len(m.channels))
-	for name := range m.channels {
-		names = append(names, name)
+	for qName := range m.channels {
+		names = append(names, stripQualifiedPrefix(qName))
 	}
 	return names
 }
@@ -267,11 +290,11 @@ func (m *Manager) SetContactCollector(cc *store.ContactCollector) {
 }
 
 // ChannelTypeForName returns the platform type for a channel instance name.
-// Reads directly from the Channel.Type() method — no separate map needed.
-func (m *Manager) ChannelTypeForName(name string) string {
+// Uses tenantID to build the qualified map key for lookup.
+func (m *Manager) ChannelTypeForName(tenantID uuid.UUID, name string) string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	if ch, ok := m.channels[name]; ok {
+	if ch, ok := m.channels[qualifiedChannelName(tenantID, name)]; ok {
 		return ch.Type()
 	}
 	return ""
