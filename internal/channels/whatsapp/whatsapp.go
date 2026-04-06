@@ -156,6 +156,7 @@ func (c *Channel) SendBridgeCommand(action string, extra ...map[string]any) erro
 }
 
 // Send delivers an outbound message to the WhatsApp bridge.
+// Supports text-only messages and messages with media attachments.
 func (c *Channel) Send(_ context.Context, msg bus.OutboundMessage) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -164,19 +165,49 @@ func (c *Channel) Send(_ context.Context, msg bus.OutboundMessage) error {
 		return fmt.Errorf("whatsapp bridge not connected")
 	}
 
-	payload := map[string]any{
-		"type":    "message",
-		"to":      msg.ChatID,
-		"content": markdownToWhatsApp(msg.Content),
+	// Send media attachments first (each as a separate bridge message).
+	if len(msg.Media) > 0 {
+		for i, m := range msg.Media {
+			// Use message content as caption for the first media item only.
+			caption := m.Caption
+			if caption == "" && i == 0 && msg.Content != "" {
+				caption = markdownToWhatsApp(msg.Content)
+			}
+			mediaPayload := map[string]any{
+				"type":     "media",
+				"to":       msg.ChatID,
+				"path":     m.URL,
+				"mimetype": m.ContentType,
+				"caption":  caption,
+			}
+			data, err := json.Marshal(mediaPayload)
+			if err != nil {
+				return fmt.Errorf("marshal whatsapp media: %w", err)
+			}
+			if err := c.conn.WriteMessage(websocket.TextMessage, data); err != nil {
+				return fmt.Errorf("send whatsapp media: %w", err)
+			}
+		}
+		// If caption was used on first media, don't send content again as text.
+		if msg.Media[0].Caption == "" && msg.Content != "" {
+			msg.Content = ""
+		}
 	}
 
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("marshal whatsapp message: %w", err)
-	}
-
-	if err := c.conn.WriteMessage(websocket.TextMessage, data); err != nil {
-		return fmt.Errorf("send whatsapp message: %w", err)
+	// Send text content (if any remains after media caption).
+	if msg.Content != "" {
+		payload := map[string]any{
+			"type":    "message",
+			"to":      msg.ChatID,
+			"content": markdownToWhatsApp(msg.Content),
+		}
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return fmt.Errorf("marshal whatsapp message: %w", err)
+		}
+		if err := c.conn.WriteMessage(websocket.TextMessage, data); err != nil {
+			return fmt.Errorf("send whatsapp message: %w", err)
+		}
 	}
 
 	// Stop typing loop synchronously, then send "paused" after releasing the lock.

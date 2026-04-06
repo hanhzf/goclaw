@@ -14,6 +14,7 @@
  *
  * Protocol — GoClaw → Bridge:
  *   { type: "message",  to: "<jid>", content: "<text>" }             Send outbound text
+ *   { type: "media",    to, path, mimetype, caption? }              Send outbound media file
  *   { type: "command",  action: "reauth" }                            Logout + restart QR flow
  *   { type: "command",  action: "ping" }                              Health check
  *   { type: "command",  action: "presence", to, state }              Presence update (composing|paused|available)
@@ -121,13 +122,23 @@ function detectMedia(message) {
 async function downloadMedia(msg) {
   const items = detectMedia(msg.message)
   if (items.length === 0) return []
+  if (!sock) return []
 
   await mkdir(MEDIA_DIR, { recursive: true })
 
   const results = []
   for (const item of items) {
     try {
-      const buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger, reuploadRequest: sock.updateMediaMessage })
+      // downloadMediaMessage needs the full msg (with key + message), not just msg.message.
+      // 4th arg: reuploadRequest must be bound to sock to preserve `this` context.
+      const buffer = await downloadMediaMessage(msg, 'buffer', {}, {
+        logger,
+        reuploadRequest: sock.updateMediaMessage?.bind(sock),
+      })
+      if (!buffer || buffer.length === 0) {
+        console.warn(`⚠️  Empty buffer for ${item.type}, skipping`)
+        continue
+      }
       if (buffer.length > MEDIA_MAX_BYTES) {
         console.warn(`⚠️  Media too large (${(buffer.length / 1024 / 1024).toFixed(1)} MB), skipping`)
         continue
@@ -335,6 +346,37 @@ wss.on('connection', ws => {
         }
         default:
           console.warn('⚠️  Unknown command:', msg.action)
+      }
+      return
+    }
+
+    if (msg.type === 'media') {
+      if (!msg.to || !msg.path) {
+        console.warn('⚠️  Outbound media missing "to" or "path"', msg)
+        return
+      }
+      if (!sock || !waConnected) {
+        console.warn('⚠️  WhatsApp not connected — dropping media to', msg.to)
+        return
+      }
+      try {
+        const to = msg.to.replace('@c.us', '@s.whatsapp.net')
+        const { readFile } = await import('node:fs/promises')
+        const buffer = await readFile(msg.path)
+        const mime = (msg.mimetype || '').toLowerCase()
+        const caption = msg.caption || undefined
+
+        let content
+        if (mime.startsWith('image/'))      content = { image: buffer, caption }
+        else if (mime.startsWith('video/')) content = { video: buffer, caption }
+        else if (mime.startsWith('audio/')) content = { audio: buffer, mimetype: mime }
+        else                                content = { document: buffer, mimetype: mime, caption,
+                                                        fileName: msg.path.split('/').pop() }
+
+        await sock.sendMessage(to, content)
+        console.log(`📤 Sent ${mime || 'media'} to ${to}`)
+      } catch (err) {
+        console.error('❌ Failed to send WhatsApp media:', err.message)
       }
       return
     }
