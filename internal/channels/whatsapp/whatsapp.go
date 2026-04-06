@@ -41,6 +41,7 @@ type Channel struct {
 	pairingService  store.PairingStore
 	pairingDebounce sync.Map // senderID → time.Time
 	approvedGroups  sync.Map // chatID → true (in-memory cache for paired groups)
+	groupHistory    *channels.PendingHistory // tracks group messages for context
 
 	// QR state
 	lastQRMu        sync.RWMutex
@@ -85,7 +86,8 @@ func detectDialect(db *sql.DB) string {
 
 // New creates a new WhatsApp channel backed by whatsmeow.
 func New(cfg config.WhatsAppConfig, msgBus *bus.MessageBus,
-	pairingSvc store.PairingStore, db *sql.DB) (*Channel, error) {
+	pairingSvc store.PairingStore, db *sql.DB,
+	pendingStore store.PendingMessageStore) (*Channel, error) {
 
 	base := channels.NewBaseChannel(channels.TypeWhatsApp, msgBus, cfg.AllowFrom)
 	base.ValidatePolicy(cfg.DMPolicy, cfg.GroupPolicy)
@@ -104,6 +106,7 @@ func New(cfg config.WhatsAppConfig, msgBus *bus.MessageBus,
 		config:         cfg,
 		pairingService: pairingSvc,
 		container:      container,
+		groupHistory:   channels.MakeHistory("whatsapp", pendingStore, base.TenantID()),
 	}, nil
 }
 
@@ -289,12 +292,26 @@ func (c *Channel) handleIncomingMessage(evt *events.Message) {
 		content = "[empty message]"
 	}
 
-	// Mention detection (group only).
+	// Group history + mention detection.
 	if peerKind == "group" && c.config.RequireMention != nil && *c.config.RequireMention {
 		if !c.isMentioned(evt) {
-			slog.Info("whatsapp group message skipped — not @mentioned", "sender_id", senderID)
+			// Not mentioned — record for context and skip.
+			senderLabel := evt.Info.PushName
+			if senderLabel == "" {
+				senderLabel = senderID
+			}
+			c.groupHistory.Record(chatID, channels.HistoryEntry{
+				Sender:    senderLabel,
+				SenderID:  senderID,
+				Body:      content,
+				Timestamp: evt.Info.Timestamp,
+				MessageID: string(evt.Info.ID),
+			}, channels.DefaultGroupHistoryLimit)
 			return
 		}
+		// Mentioned — prepend accumulated group context.
+		content = c.groupHistory.BuildContext(chatID, content, channels.DefaultGroupHistoryLimit)
+		c.groupHistory.Clear(chatID)
 	}
 
 	metadata := map[string]string{

@@ -21,7 +21,7 @@ type whatsappInstanceConfig struct {
 }
 
 // FactoryWithDB returns a ChannelFactory with DB access for whatsmeow auth state.
-func FactoryWithDB(db *sql.DB) channels.ChannelFactory {
+func FactoryWithDB(db *sql.DB, pendingStore store.PendingMessageStore) channels.ChannelFactory {
 	return func(name string, creds json.RawMessage, cfg json.RawMessage,
 		msgBus *bus.MessageBus, pairingSvc store.PairingStore) (channels.Channel, error) {
 
@@ -61,7 +61,7 @@ func FactoryWithDB(db *sql.DB) channels.ChannelFactory {
 			waCfg.GroupPolicy = "pairing"
 		}
 
-		ch, err := New(waCfg, msgBus, pairingSvc, db)
+		ch, err := New(waCfg, msgBus, pairingSvc, db, pendingStore)
 		if err != nil {
 			return nil, err
 		}
