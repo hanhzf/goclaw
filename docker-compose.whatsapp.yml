@@ -1,0 +1,46 @@
+# WhatsApp bridge overlay — runs the WA WebSocket bridge alongside GoClaw.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-compose.whatsapp.yml up -d --build
+#
+# First run: tail logs to see the QR code, then scan with WhatsApp:
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-compose.whatsapp.yml logs -f whatsapp-bridge
+#
+# GoClaw config.json must include:
+#   "channels": {
+#     "whatsapp": {
+#       "enabled": true,
+#       "bridge_url": "ws://whatsapp-bridge:3001",
+#       "dm_policy": "open"
+#     }
+#   }
+#
+# Auth state is persisted in the 'whatsapp-auth' volume — delete it to re-pair.
+# Env overrides:
+#   WHATSAPP_BRIDGE_PORT  — host port to expose (default 3001)
+#   WHATSAPP_LOG_LEVEL    — Baileys log level: silent|info|debug (default silent)
+
+services:
+  whatsapp-bridge:
+    build:
+      context: ./bridge/whatsapp
+      dockerfile: Dockerfile
+    ports:
+      - "${WHATSAPP_BRIDGE_PORT:-3001}:3001"
+    volumes:
+      - whatsapp-auth:/app/auth_info
+    environment:
+      - BRIDGE_PORT=3001
+      - AUTH_DIR=/app/auth_info
+      - LOG_LEVEL=${WHATSAPP_LOG_LEVEL:-silent}
+    networks:
+      - goclaw-net
+    restart: unless-stopped
+    init: true
+
+  goclaw:
+    depends_on:
+      - whatsapp-bridge
+
+volumes:
+  whatsapp-auth:

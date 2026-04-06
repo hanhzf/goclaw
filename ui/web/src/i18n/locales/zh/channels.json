@@ -331,6 +331,10 @@
     "zaloPersonal": {
       "createLabel": "创建并认证",
       "formBanner": "创建后，您将通过二维码进行认证并配置允许的用户。"
+    },
+    "whatsapp": {
+      "createLabel": "创建并扫码",
+      "formBanner": "创建后，请用 WhatsApp 扫描二维码完成认证。"
     }
   },
   "fallback": {
@@ -379,5 +383,21 @@
     "retry": "重试",
     "close": "关闭",
     "skip": "跳过"
+  },
+  "whatsapp": {
+    "loginSuccessLoading": "✅ WhatsApp 已连接！正在加载 channel...",
+    "waitingForQr": "正在等待来自 bridge 的二维码...",
+    "scanHint": "打开 WhatsApp → 点击【您】→【已连接的设备】→【连接设备】",
+    "initializing": "初始化中...",
+    "skip": "跳过",
+    "retry": "重试",
+    "close": "关闭",
+    "reauthTitle": "连接 WhatsApp — {{name}}",
+    "reauthDescription": "使用 WhatsApp 扫描二维码以连接设备。",
+    "alreadyLinked": "✅ 设备已连接",
+    "alreadyLinkedDetail": "WhatsApp 已连接。如需连接其他设备，请点击【重新连接】——这将退出当前会话。",
+    "relinkDevice": "重新连接",
+    "connectedSuccess": "✅ WhatsApp 连接成功！",
+    "tabQrCode": "二维码"
   }
 }
