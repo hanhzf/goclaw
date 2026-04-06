@@ -34,6 +34,21 @@ All notable changes to GoClaw Gateway are documented here. Format follows [Keep 
 
 ### Added
 
+#### WhatsApp Native Protocol Integration (2026-04-06)
+- **Whatsmeow migration**: Replaced Node.js Baileys bridge with native `go.mau.fi/whatsmeow` library for in-process WhatsApp connectivity
+- **Database auth persistence**: Auth state, device keys, and client metadata stored in PostgreSQL (standard) or SQLite (desktop) via whatsmeow's sqlstore
+- **QR authentication**: Interactive QR code authentication driven directly by whatsmeow's `GetQRChannel()` without external bridge relay
+- **No more bridge_url**: Removed `bridge_url` configuration, eliminated `docker-compose.whatsapp.yml`, removed `bridge/whatsapp/` sidecar service
+- **Enhanced media handling**: Direct media download/upload to WhatsApp servers with automatic type detection and streaming
+- **Improved mention detection**: Group mention detection now uses LID (Local ID) + JID (standard format) for robust message routing
+- **Files added**:
+  - `internal/channels/whatsapp/factory.go` — Dialect detection and channel factory
+  - `internal/channels/whatsapp/qr_methods.go` — QR code generation and authentication flow
+  - `internal/channels/whatsapp/format.go` — HTML-to-WhatsApp message formatting
+  - whatsmeow sqlstore integration for cross-platform auth persistence
+
+### Refactored
+
 #### Parallel Sub-Agent Enhancement (#600) (2026-03-31)
 - **Smart leader delegation**: Conditional leader delegation prompt instead of forced delegation for all subagent spawns
 - **Compaction prompt persistence**: Preserves pending subagent and team task state across context summarization to maintain work continuity

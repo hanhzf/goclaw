@@ -2,14 +2,15 @@ package whatsapp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	qrcode "github.com/skip2/go-qrcode"
 
-	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
@@ -23,17 +24,15 @@ type cancelEntry struct {
 	cancel context.CancelFunc
 }
 
-// QRMethods handles whatsapp.qr.start — delivers bridge QR codes to the UI wizard.
-// The QR code comes from the external bridge (Baileys), not generated in-process.
+// QRMethods handles whatsapp.qr.start — delivers QR codes to the UI wizard.
 type QRMethods struct {
 	instanceStore  store.ChannelInstanceStore
 	manager        *channels.Manager
-	msgBus         *bus.MessageBus
 	activeSessions sync.Map // instanceID (string) -> *cancelEntry
 }
 
-func NewQRMethods(instanceStore store.ChannelInstanceStore, manager *channels.Manager, msgBus *bus.MessageBus) *QRMethods {
-	return &QRMethods{instanceStore: instanceStore, manager: manager, msgBus: msgBus}
+func NewQRMethods(instanceStore store.ChannelInstanceStore, manager *channels.Manager) *QRMethods {
+	return &QRMethods{instanceStore: instanceStore, manager: manager}
 }
 
 func (m *QRMethods) Register(router *gateway.MethodRouter) {
@@ -43,7 +42,7 @@ func (m *QRMethods) Register(router *gateway.MethodRouter) {
 func (m *QRMethods) handleQRStart(ctx context.Context, client *gateway.Client, req *goclawprotocol.RequestFrame) {
 	var params struct {
 		InstanceID  string `json:"instance_id"`
-		ForceReauth bool   `json:"force_reauth"` // if true, logout current session and generate fresh QR
+		ForceReauth bool   `json:"force_reauth"`
 	}
 	if req.Params != nil {
 		_ = json.Unmarshal(req.Params, &params)
@@ -64,7 +63,7 @@ func (m *QRMethods) handleQRStart(ctx context.Context, client *gateway.Client, r
 	qrCtx, cancel := context.WithTimeout(ctx, qrSessionTimeout)
 	entry := &cancelEntry{cancel: cancel}
 
-	// Cancel any previous QR session for this instance so the user can retry.
+	// Cancel any previous QR session for this instance.
 	if prev, loaded := m.activeSessions.Swap(params.InstanceID, entry); loaded {
 		if prevEntry, ok := prev.(*cancelEntry); ok {
 			prevEntry.cancel()
@@ -77,102 +76,158 @@ func (m *QRMethods) handleQRStart(ctx context.Context, client *gateway.Client, r
 	go m.runQRSession(qrCtx, entry, client, params.InstanceID, inst.Name, params.ForceReauth)
 }
 
-func (m *QRMethods) runQRSession(ctx context.Context, entry *cancelEntry, client *gateway.Client, instanceIDStr, channelName string, forceReauth bool) {
+func (m *QRMethods) runQRSession(ctx context.Context, entry *cancelEntry,
+	client *gateway.Client, instanceIDStr, channelName string, forceReauth bool) {
+
 	defer entry.cancel()
 	defer m.activeSessions.CompareAndDelete(instanceIDStr, entry)
 
-	if ch, ok := m.manager.GetChannel(channelName); ok {
-		if wa, ok := ch.(*Channel); ok {
-			if wa.IsAuthenticated() && !forceReauth {
-				// Already authenticated and caller didn't request re-link — signal "connected" to UI.
-				client.SendEvent(goclawprotocol.EventFrame{
-					Type:  goclawprotocol.FrameTypeEvent,
-					Event: goclawprotocol.EventWhatsAppQRDone,
-					Payload: map[string]any{
-						"instance_id":       instanceIDStr,
-						"success":           true,
-						"already_connected": true,
-					},
-				})
-				slog.Info("whatsapp QR skipped — already authenticated", "instance", instanceIDStr)
-				return
-			}
-			if forceReauth || wa.GetLastQRB64() == "" {
-				// Force re-link or no cached QR: ask bridge to logout and restart auth.
-				if err := wa.SendBridgeCommand("reauth"); err != nil {
-					slog.Warn("whatsapp QR: failed to send reauth to bridge", "instance", instanceIDStr, "error", err)
-				} else {
-					slog.Info("whatsapp QR: sent reauth to bridge", "instance", instanceIDStr, "force", forceReauth)
-				}
-			} else {
-				// Deliver cached QR if bridge sent it before the wizard opened.
-				client.SendEvent(goclawprotocol.EventFrame{
-					Type:  goclawprotocol.FrameTypeEvent,
-					Event: goclawprotocol.EventWhatsAppQRCode,
-					Payload: map[string]any{
-						"instance_id": instanceIDStr,
-						"png_b64":     wa.GetLastQRB64(),
-					},
-				})
-			}
-		}
-	}
-
-	// Subscribe to bus events for this channel's QR lifecycle.
-	subID := "whatsapp-qr-" + instanceIDStr
-	done := make(chan struct{})
-
-	m.msgBus.Subscribe(subID, func(event bus.Event) {
-		payload, ok := event.Payload.(map[string]any)
-		if !ok {
-			return
-		}
-		if payload["channel_name"] != channelName {
-			return
-		}
-
-		switch event.Name {
-		case goclawprotocol.EventWhatsAppQRCode:
-			client.SendEvent(goclawprotocol.EventFrame{
-				Type:  goclawprotocol.FrameTypeEvent,
-				Event: goclawprotocol.EventWhatsAppQRCode,
-				Payload: map[string]any{
-					"instance_id": instanceIDStr,
-					"png_b64":     payload["png_b64"],
-				},
-			})
-
-		case goclawprotocol.EventWhatsAppQRDone:
-			client.SendEvent(goclawprotocol.EventFrame{
-				Type:  goclawprotocol.FrameTypeEvent,
-				Event: goclawprotocol.EventWhatsAppQRDone,
-				Payload: map[string]any{
-					"instance_id": instanceIDStr,
-					"success":     true,
-				},
-			})
-			select {
-			case done <- struct{}{}:
-			default:
-			}
-		}
-	})
-	defer m.msgBus.Unsubscribe(subID)
-
-	select {
-	case <-done:
-		slog.Info("whatsapp QR session completed", "instance", instanceIDStr)
-	case <-ctx.Done():
+	ch, ok := m.manager.GetChannel(channelName)
+	if !ok {
 		client.SendEvent(goclawprotocol.EventFrame{
 			Type:  goclawprotocol.FrameTypeEvent,
 			Event: goclawprotocol.EventWhatsAppQRDone,
 			Payload: map[string]any{
 				"instance_id": instanceIDStr,
 				"success":     false,
-				"error":       "QR session timed out — restart to try again",
+				"error":       "channel not found",
 			},
 		})
-		slog.Info("whatsapp QR session timed out", "instance", instanceIDStr)
+		return
+	}
+
+	wa, ok := ch.(*Channel)
+	if !ok {
+		return
+	}
+
+	// Already authenticated and no force-reauth → signal connected.
+	if wa.IsAuthenticated() && !forceReauth {
+		client.SendEvent(goclawprotocol.EventFrame{
+			Type:  goclawprotocol.FrameTypeEvent,
+			Event: goclawprotocol.EventWhatsAppQRDone,
+			Payload: map[string]any{
+				"instance_id":       instanceIDStr,
+				"success":           true,
+				"already_connected": true,
+			},
+		})
+		return
+	}
+
+	// Force reauth: clear session and prepare for fresh QR.
+	if forceReauth {
+		if err := wa.Reauth(); err != nil {
+			slog.Warn("whatsapp QR: reauth failed", "error", err)
+		}
+	}
+
+	// Deliver cached QR if available.
+	if cached := wa.GetLastQRB64(); cached != "" {
+		client.SendEvent(goclawprotocol.EventFrame{
+			Type:  goclawprotocol.FrameTypeEvent,
+			Event: goclawprotocol.EventWhatsAppQRCode,
+			Payload: map[string]any{
+				"instance_id": instanceIDStr,
+				"png_b64":     cached,
+			},
+		})
+	}
+
+	// Start QR flow — get QR channel from whatsmeow.
+	qrChan, err := wa.StartQRFlow(ctx)
+	if err != nil {
+		slog.Warn("whatsapp QR: start flow failed", "error", err)
+		client.SendEvent(goclawprotocol.EventFrame{
+			Type:  goclawprotocol.FrameTypeEvent,
+			Event: goclawprotocol.EventWhatsAppQRDone,
+			Payload: map[string]any{
+				"instance_id": instanceIDStr,
+				"success":     false,
+				"error":       err.Error(),
+			},
+		})
+		return
+	}
+
+	if qrChan == nil {
+		// Already authenticated (StartQRFlow returned nil).
+		client.SendEvent(goclawprotocol.EventFrame{
+			Type:  goclawprotocol.FrameTypeEvent,
+			Event: goclawprotocol.EventWhatsAppQRDone,
+			Payload: map[string]any{
+				"instance_id":       instanceIDStr,
+				"success":           true,
+				"already_connected": true,
+			},
+		})
+		return
+	}
+
+	// Process QR events from whatsmeow.
+	for {
+		select {
+		case <-ctx.Done():
+			client.SendEvent(goclawprotocol.EventFrame{
+				Type:  goclawprotocol.FrameTypeEvent,
+				Event: goclawprotocol.EventWhatsAppQRDone,
+				Payload: map[string]any{
+					"instance_id": instanceIDStr,
+					"success":     false,
+					"error":       "QR session timed out — restart to try again",
+				},
+			})
+			return
+
+		case evt, ok := <-qrChan:
+			if !ok {
+				return // channel closed
+			}
+
+			switch evt.Event {
+			case "code":
+				png, qrErr := qrcode.Encode(evt.Code, qrcode.Medium, 256)
+				if qrErr != nil {
+					slog.Warn("whatsapp: QR PNG encode failed", "error", qrErr)
+					continue
+				}
+				pngB64 := base64.StdEncoding.EncodeToString(png)
+
+				wa.cacheQR(pngB64)
+
+				client.SendEvent(goclawprotocol.EventFrame{
+					Type:  goclawprotocol.FrameTypeEvent,
+					Event: goclawprotocol.EventWhatsAppQRCode,
+					Payload: map[string]any{
+						"instance_id": instanceIDStr,
+						"png_b64":     pngB64,
+					},
+				})
+
+			case "success":
+				client.SendEvent(goclawprotocol.EventFrame{
+					Type:  goclawprotocol.FrameTypeEvent,
+					Event: goclawprotocol.EventWhatsAppQRDone,
+					Payload: map[string]any{
+						"instance_id": instanceIDStr,
+						"success":     true,
+					},
+				})
+				slog.Info("whatsapp QR session completed", "instance", instanceIDStr)
+				return
+
+			case "timeout":
+				client.SendEvent(goclawprotocol.EventFrame{
+					Type:  goclawprotocol.FrameTypeEvent,
+					Event: goclawprotocol.EventWhatsAppQRDone,
+					Payload: map[string]any{
+						"instance_id": instanceIDStr,
+						"success":     false,
+						"error":       "QR code expired — restart to try again",
+					},
+				})
+				return
+			}
+		}
 	}
 }
-

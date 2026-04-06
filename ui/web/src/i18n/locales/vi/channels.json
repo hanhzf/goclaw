@@ -213,7 +213,6 @@
     "encrypt_key": { "label": "Khóa mã hóa", "help": "Cho chế độ webhook" },
     "verification_token": { "label": "Token xác minh", "help": "Cho chế độ webhook" },
     "webhook_secret": { "label": "Webhook Secret" },
-    "bridge_url": { "label": "URL Bridge" },
     "api_server": { "label": "URL máy chủ API", "help": "Máy chủ API Bot Telegram tùy chỉnh cho tải file lớn (lên đến 2GB). Để trống cho mặc định." },
     "proxy": { "label": "Proxy HTTP", "help": "Định tuyến lưu lượng bot qua proxy HTTP" },
     "dm_policy": { "label": "Chính sách DM" },

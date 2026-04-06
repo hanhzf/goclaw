@@ -1,5 +1,5 @@
 // WhatsApp wizard step components for the channel create wizard.
-// The QR code comes from the external Baileys bridge, forwarded via GoClaw's WS bus.
+// QR auth is driven directly by whatsmeow's GetQRChannel(), delivered via WS events.
 // Registered in channel-wizard-registry.tsx.
 
 import { useEffect } from "react";

@@ -133,7 +133,7 @@ type SlackConfig struct {
 
 type WhatsAppConfig struct {
 	Enabled        bool                `json:"enabled"`
-	BridgeURL      string              `json:"bridge_url"`
+	AuthDir        string              `json:"auth_dir,omitempty"` // optional: SQLite auth dir override (desktop)
 	AllowFrom      FlexibleStringSlice `json:"allow_from"`
 	DMPolicy       string              `json:"dm_policy,omitempty"`       // "pairing" (default for DB instances), "open", "allowlist", "disabled"
 	GroupPolicy    string              `json:"group_policy,omitempty"`    // "pairing" (default for DB instances), "open" (default for config), "allowlist", "disabled"

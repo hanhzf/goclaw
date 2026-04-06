@@ -1,6 +1,7 @@
 package whatsapp
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 
@@ -12,7 +13,6 @@ import (
 
 // whatsappInstanceConfig maps the non-secret config JSONB from the channel_instances table.
 type whatsappInstanceConfig struct {
-	BridgeURL      string   `json:"bridge_url"`
 	DMPolicy       string   `json:"dm_policy,omitempty"`
 	GroupPolicy    string   `json:"group_policy,omitempty"`
 	RequireMention *bool    `json:"require_mention,omitempty"`
@@ -20,51 +20,52 @@ type whatsappInstanceConfig struct {
 	BlockReply     *bool    `json:"block_reply,omitempty"`
 }
 
-// Factory creates a WhatsApp channel from DB instance data.
-func Factory(name string, creds json.RawMessage, cfg json.RawMessage,
-	msgBus *bus.MessageBus, pairingSvc store.PairingStore) (channels.Channel, error) {
+// FactoryWithDB returns a ChannelFactory with DB access for whatsmeow auth state.
+func FactoryWithDB(db *sql.DB) channels.ChannelFactory {
+	return func(name string, creds json.RawMessage, cfg json.RawMessage,
+		msgBus *bus.MessageBus, pairingSvc store.PairingStore) (channels.Channel, error) {
 
-	var ic whatsappInstanceConfig
-	if len(cfg) > 0 {
-		if err := json.Unmarshal(cfg, &ic); err != nil {
-			return nil, fmt.Errorf("decode whatsapp config: %w", err)
+		var ic whatsappInstanceConfig
+		if len(cfg) > 0 {
+			if err := json.Unmarshal(cfg, &ic); err != nil {
+				return nil, fmt.Errorf("decode whatsapp config: %w", err)
+			}
 		}
-	}
 
-	// Fallback: read bridge_url from credentials for instances created before this migration.
-	if ic.BridgeURL == "" && len(creds) > 0 {
-		var legacy struct {
-			BridgeURL string `json:"bridge_url"`
+		// Detect old bridge_url config and give clear migration error.
+		if len(cfg) > 0 {
+			var legacy struct{ BridgeURL string `json:"bridge_url"` }
+			if json.Unmarshal(cfg, &legacy) == nil && legacy.BridgeURL != "" {
+				return nil, fmt.Errorf("whatsapp: bridge_url is no longer supported — " +
+					"WhatsApp now runs natively via whatsmeow. Remove bridge_url from config")
+			}
 		}
-		if json.Unmarshal(creds, &legacy) == nil && legacy.BridgeURL != "" {
-			ic.BridgeURL = legacy.BridgeURL
+		if len(creds) > 0 {
+			var legacy struct{ BridgeURL string `json:"bridge_url"` }
+			if json.Unmarshal(creds, &legacy) == nil && legacy.BridgeURL != "" {
+				return nil, fmt.Errorf("whatsapp: bridge_url is no longer supported — " +
+					"WhatsApp now runs natively via whatsmeow. Remove bridge_url from credentials")
+			}
 		}
-	}
 
-	if ic.BridgeURL == "" {
-		return nil, fmt.Errorf("whatsapp bridge_url is required")
-	}
+		waCfg := config.WhatsAppConfig{
+			Enabled:        true,
+			AllowFrom:      ic.AllowFrom,
+			DMPolicy:       ic.DMPolicy,
+			GroupPolicy:    ic.GroupPolicy,
+			RequireMention: ic.RequireMention,
+			BlockReply:     ic.BlockReply,
+		}
+		// DB instances default to "pairing" for groups (secure by default).
+		if waCfg.GroupPolicy == "" {
+			waCfg.GroupPolicy = "pairing"
+		}
 
-	waCfg := config.WhatsAppConfig{
-		Enabled:        true,
-		BridgeURL:      ic.BridgeURL,
-		AllowFrom:      ic.AllowFrom,
-		DMPolicy:       ic.DMPolicy,
-		GroupPolicy:    ic.GroupPolicy,
-		RequireMention: ic.RequireMention,
-		BlockReply:     ic.BlockReply,
+		ch, err := New(waCfg, msgBus, pairingSvc, db)
+		if err != nil {
+			return nil, err
+		}
+		ch.SetName(name)
+		return ch, nil
 	}
-
-	// DB instances default to "pairing" for groups (secure by default).
-	if waCfg.GroupPolicy == "" {
-		waCfg.GroupPolicy = "pairing"
-	}
-
-	ch, err := New(waCfg, msgBus, pairingSvc)
-	if err != nil {
-		return nil, err
-	}
-
-	ch.SetName(name)
-	return ch, nil
 }
