@@ -120,19 +120,38 @@ func (t *ExecTool) dynamicPathExemptions(ctx context.Context) []string {
 		if dir == "" || strings.Contains(dir, "..") {
 			continue
 		}
-		cleanDir := filepath.Clean(dir)
-		if !t.isNestedUnderDeniedRoot(cleanDir) {
-			continue
-		}
-		for _, ex := range []string{cleanDir, cleanDir + string(filepath.Separator)} {
-			if _, ok := seen[ex]; ok {
+		for _, variant := range pathAliasVariants(filepath.Clean(dir)) {
+			if !t.isNestedUnderDeniedRoot(variant) {
 				continue
 			}
-			seen[ex] = struct{}{}
-			exemptions = append(exemptions, ex)
+			for _, ex := range []string{variant, variant + string(filepath.Separator)} {
+				if _, ok := seen[ex]; ok {
+					continue
+				}
+				seen[ex] = struct{}{}
+				exemptions = append(exemptions, ex)
+			}
 		}
 	}
 	return exemptions
+}
+
+func pathAliasVariants(path string) []string {
+	variants := []string{path}
+	for _, mapping := range [][2]string{
+		{"/app/workspace", "/app/.goclaw"},
+		{"/app/.goclaw", "/app/workspace"},
+	} {
+		from, to := mapping[0], mapping[1]
+		if path == from {
+			variants = append(variants, to)
+			continue
+		}
+		if strings.HasPrefix(path, from+string(filepath.Separator)) {
+			variants = append(variants, to+strings.TrimPrefix(path, from))
+		}
+	}
+	return variants
 }
 
 func (t *ExecTool) isNestedUnderDeniedRoot(path string) bool {

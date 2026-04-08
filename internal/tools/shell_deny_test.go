@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -594,6 +595,14 @@ func TestExecute_AllowsLegacyWorkspaceUploadsLayout(t *testing.T) {
 
 	if strings.Contains(result.ForLLM, "command denied by safety policy") {
 		t.Fatalf("expected legacy uploads layout to bypass deny, got: %s", result.ForLLM)
+	}
+}
+
+func TestPathAliasVariants_AppWorkspaceMirror(t *testing.T) {
+	got := pathAliasVariants("/app/workspace/glm-thuc-bo/ws/user/.uploads")
+	want := "/app/.goclaw/glm-thuc-bo/ws/user/.uploads"
+	if !slices.Contains(got, want) {
+		t.Fatalf("expected mirror variant %q in %v", want, got)
 	}
 }
 
