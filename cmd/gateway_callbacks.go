@@ -30,8 +30,16 @@ func buildEnsureUserProfile(as store.AgentStore) agent.EnsureUserProfileFunc {
 // isNew=true seeds all files; isNew=false only seeds if user has zero files
 // (avoids re-seeding BOOTSTRAP.md after auto-cleanup on server restart).
 func buildSeedUserFiles(as store.AgentStore) agent.SeedUserFilesFunc {
-	return func(ctx context.Context, agentID uuid.UUID, userID, agentType string, isNew bool) error {
-		_, err := bootstrap.SeedUserFiles(ctx, as, agentID, userID, agentType, !isNew)
+	return func(ctx context.Context, agentID uuid.UUID, userID, agentType string, isNew bool, channelMeta *agent.ChannelMeta) error {
+		var bsMeta *bootstrap.ChannelMeta
+		if channelMeta != nil {
+			bsMeta = &bootstrap.ChannelMeta{
+				ChannelType:     channelMeta.ChannelType,
+				DisplayName:     channelMeta.DisplayName,
+				DefaultTimezone: channelMeta.DefaultTimezone,
+			}
+		}
+		_, err := bootstrap.SeedUserFiles(ctx, as, agentID, userID, agentType, !isNew, bsMeta)
 		return err
 	}
 }

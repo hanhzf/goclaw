@@ -39,11 +39,21 @@ type userSetup struct {
 // Does NOT seed context files — that's SeedUserFilesFunc's responsibility.
 type EnsureUserProfileFunc func(ctx context.Context, agentID uuid.UUID, userID, workspace, channel string) (effectiveWorkspace string, isNew bool, err error)
 
+// ChannelMeta carries channel-provided contact info for bootstrap decisions.
+// When a channel provides enough user info (e.g. display_name from Pancake webhook),
+// SeedUserFiles can skip BOOTSTRAP.md and pre-fill USER.md instead.
+type ChannelMeta struct {
+	ChannelType     string // platform type: "pancake", "telegram", "discord", etc.
+	DisplayName     string // user's display name from channel (e.g. Facebook profile name)
+	DefaultTimezone string // system default timezone from config (e.g. "Asia/Ho_Chi_Minh")
+}
+
 // SeedUserFilesFunc seeds per-user context files (BOOTSTRAP.md, USER.md, etc.).
 // Called once per user per Loop instance, independent of workspace.
 // isNew indicates whether the profile was just created (seed all) or already existed
 // (only seed if user has zero files — avoids re-seeding after BOOTSTRAP.md cleanup).
-type SeedUserFilesFunc func(ctx context.Context, agentID uuid.UUID, userID, agentType string, isNew bool) error
+// channelMeta carries optional channel-provided contact info for bootstrap skip decisions.
+type SeedUserFilesFunc func(ctx context.Context, agentID uuid.UUID, userID, agentType string, isNew bool, channelMeta *ChannelMeta) error
 
 // EnsureUserFilesFunc is the legacy combined callback (profile + seed + workspace).
 // Deprecated: use EnsureUserProfileFunc + SeedUserFilesFunc separately.
@@ -69,6 +79,7 @@ type Loop struct {
 	agentUUID        uuid.UUID // set for context propagation
 	tenantID         uuid.UUID // agent's owning tenant
 	agentType        string    // "open" or "predefined"
+	defaultTimezone  string    // system default timezone for bootstrap pre-fill
 	provider         providers.Provider
 	model            string
 	contextWindow    int
@@ -270,6 +281,7 @@ type LoopConfig struct {
 	ContextFileLoader ContextFileLoaderFunc
 	BootstrapCleanup  BootstrapCleanupFunc
 	CacheInvalidate   CacheInvalidateFunc // invalidate context file cache after seeding
+	DefaultTimezone   string              // system default timezone for bootstrap pre-fill
 
 	// Tracing collector (nil = no tracing)
 	TraceCollector *tracing.Collector
@@ -385,6 +397,7 @@ func NewLoop(cfg LoopConfig) *Loop {
 		skillAllowList:         cfg.SkillAllowList,
 		hasMemory:              cfg.HasMemory,
 		contextFiles:           cfg.ContextFiles,
+		defaultTimezone:        cfg.DefaultTimezone,
 		ensureUserProfile:      cfg.EnsureUserProfile,
 		seedUserFiles:          cfg.SeedUserFiles,
 		ensureUserFiles:        cfg.EnsureUserFiles,
@@ -436,6 +449,7 @@ type RunRequest struct {
 	RunID             string             // unique run identifier
 	UserID            string             // external user ID (TEXT, free-form) for multi-tenant scoping
 	SenderID          string             // original individual sender ID (preserved in group chats for permission checks)
+	DisplayName       string             // user's display name from channel metadata (for bootstrap skip)
 	Stream            bool               // whether to stream response chunks
 	ExtraSystemPrompt string             // optional: injected into system prompt (skills, subagent context, etc.)
 	SkillFilter       []string           // per-request skill override: nil=use agent default, []=no skills, ["x","y"]=whitelist
