@@ -72,7 +72,7 @@ func (l *Loop) buildChannelMeta(req *RunRequest) *bootstrap.ChannelMeta {
 	}
 	return &bootstrap.ChannelMeta{
 		ChannelType:     req.ChannelType,
-		DisplayName:     req.DisplayName,
+		DisplayName:     req.SenderName,
 		DefaultTimezone: l.defaultTimezone,
 	}
 }
