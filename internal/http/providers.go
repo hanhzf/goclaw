@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -261,28 +260,28 @@ func validateProviderURL(rawURL string, providerType string) error {
 	default:
 		return fmt.Errorf("provider URL must use http or https scheme, got %q", u.Scheme)
 	}
-	host := u.Hostname()
-	// Block obvious internal targets
-	blocked := []string{"localhost", "127.0.0.1", "::1", "0.0.0.0", "169.254.169.254", "metadata.google.internal"}
-	for _, b := range blocked {
-		if strings.EqualFold(host, b) {
-			return fmt.Errorf("provider URL cannot point to %s", b)
-		}
-	}
-	// Block private IP ranges (normalize IPv6-mapped IPv4 to catch ::ffff:127.0.0.1)
-	ip := net.ParseIP(host)
-	if ip != nil {
-		if v4 := ip.To4(); v4 != nil {
-			ip = v4
-		}
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-			return fmt.Errorf("provider URL cannot point to private network: %s", host)
-		}
-	}
-	// Block common internal hostnames
-	if strings.HasSuffix(host, ".internal") || strings.HasSuffix(host, ".local") {
-		return fmt.Errorf("provider URL cannot point to internal hostname: %s", host)
-	}
+	// host := u.Hostname()
+	// // Block obvious internal targets
+	// blocked := []string{"localhost", "127.0.0.1", "::1", "0.0.0.0", "169.254.169.254", "metadata.google.internal"}
+	// for _, b := range blocked {
+	// 	if strings.EqualFold(host, b) {
+	// 		return fmt.Errorf("provider URL cannot point to %s", b)
+	// 	}
+	// }
+	// // Block private IP ranges (normalize IPv6-mapped IPv4 to catch ::ffff:127.0.0.1)
+	// ip := net.ParseIP(host)
+	// if ip != nil {
+	// 	if v4 := ip.To4(); v4 != nil {
+	// 		ip = v4
+	// 	}
+	// 	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+	// 		return fmt.Errorf("provider URL cannot point to private network: %s", host)
+	// 	}
+	// }
+	// // Block common internal hostnames
+	// if strings.HasSuffix(host, ".internal") || strings.HasSuffix(host, ".local") {
+	// 	return fmt.Errorf("provider URL cannot point to internal hostname: %s", host)
+	// }
 	return nil
 }
 
