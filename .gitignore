@@ -29,6 +29,9 @@ prompt.md
 ui/web/node_modules/
 ui/web/dist/
 ui/web/.vite/
+ui/light-web/node_modules/
+ui/light-web/dist/
+ui/light-web/.vite/
 *.tsbuildinfo
 
 # UI Desktop (Wails + React)
