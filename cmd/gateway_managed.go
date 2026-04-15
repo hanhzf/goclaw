@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -27,6 +28,7 @@ import (
 	memorypkg "github.com/nextlevelbuilder/goclaw/internal/memory"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/sandbox"
+	"github.com/nextlevelbuilder/goclaw/internal/security"
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
@@ -156,7 +158,10 @@ func wireExtras(
 			Audit: hooks.NewAuditWriter(hs, ""),
 			Handlers: map[hooks.HandlerType]hooks.Handler{
 				hooks.HandlerCommand: &hookhandlers.CommandHandler{Edition: edition.Current()},
-				hooks.HandlerHTTP:    &hookhandlers.HTTPHandler{EncryptKey: encryptKey},
+				hooks.HandlerHTTP: &hookhandlers.HTTPHandler{
+					EncryptKey: encryptKey,
+					Client:     security.NewSafeClient(10 * time.Second),
+				},
 			},
 		}
 		hookDispatcher = hooks.NewStdDispatcher(stdOpts)

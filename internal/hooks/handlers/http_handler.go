@@ -11,6 +11,7 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/crypto"
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
+	"github.com/nextlevelbuilder/goclaw/internal/security"
 )
 
 // HTTPHandler posts event data to an HTTP endpoint and interprets the JSON
@@ -42,6 +43,20 @@ func (h *HTTPHandler) Execute(ctx context.Context, cfg hooks.HookConfig, ev hook
 	if urlStr == "" {
 		return hooks.DecisionError, fmt.Errorf("hook: http handler: missing 'url' in config")
 	}
+
+	// SSRF validation: resolve host once and pin the IP.
+	// When a custom Client is set (e.g. in tests via httptest), the client's
+	// own transport handles routing; Validate is still called so that
+	// production-path URLs are always vetted. Tests that use httptest must
+	// call security.SetAllowLoopbackForTest(true) to bypass the loopback block.
+	parsedURL, pinnedIP, err := security.Validate(urlStr)
+	if err != nil {
+		return hooks.DecisionError, fmt.Errorf("hook: http handler: ssrf check: %w", err)
+	}
+	_ = parsedURL // URL string already validated; we keep urlStr for the request.
+
+	// Stash pinned IP into context so NewSafeClient's DialContext can read it.
+	ctx = security.WithPinnedIP(ctx, pinnedIP)
 
 	body, err := json.Marshal(ev)
 	if err != nil {

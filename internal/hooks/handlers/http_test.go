@@ -10,6 +10,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/crypto"
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
 	"github.com/nextlevelbuilder/goclaw/internal/hooks/handlers"
+	"github.com/nextlevelbuilder/goclaw/internal/security"
 )
 
 // makeHTTPCfg builds a minimal HookConfig with given URL.
@@ -23,6 +24,9 @@ func makeHTTPCfg(url string) hooks.HookConfig {
 }
 
 func TestHTTP_200Allow(t *testing.T) {
+	security.SetAllowLoopbackForTest(true)
+	defer security.SetAllowLoopbackForTest(false)
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		// empty body → allow
@@ -40,6 +44,9 @@ func TestHTTP_200Allow(t *testing.T) {
 }
 
 func TestHTTP_200BlockDecision(t *testing.T) {
+	security.SetAllowLoopbackForTest(true)
+	defer security.SetAllowLoopbackForTest(false)
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -58,6 +65,9 @@ func TestHTTP_200BlockDecision(t *testing.T) {
 }
 
 func TestHTTP_200ContinueFalse(t *testing.T) {
+	security.SetAllowLoopbackForTest(true)
+	defer security.SetAllowLoopbackForTest(false)
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -76,6 +86,9 @@ func TestHTTP_200ContinueFalse(t *testing.T) {
 }
 
 func TestHTTP_5xxRetriesOnce(t *testing.T) {
+	security.SetAllowLoopbackForTest(true)
+	defer security.SetAllowLoopbackForTest(false)
+
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n := calls.Add(1)
@@ -102,6 +115,9 @@ func TestHTTP_5xxRetriesOnce(t *testing.T) {
 }
 
 func TestHTTP_4xxReturnsError(t *testing.T) {
+	security.SetAllowLoopbackForTest(true)
+	defer security.SetAllowLoopbackForTest(false)
+
 	// The Execute method retries once on any doRequest error (including 4xx).
 	// Primary assertion: the final decision is DecisionError regardless of retry.
 	var calls atomic.Int32
@@ -143,6 +159,9 @@ func TestHTTP_MissingURL(t *testing.T) {
 }
 
 func TestHTTP_NonJSON2xx_TreatedAsAllow(t *testing.T) {
+	security.SetAllowLoopbackForTest(true)
+	defer security.SetAllowLoopbackForTest(false)
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
@@ -160,6 +179,9 @@ func TestHTTP_NonJSON2xx_TreatedAsAllow(t *testing.T) {
 }
 
 func TestHTTP_EncryptedAuthHeader_Decrypted(t *testing.T) {
+	security.SetAllowLoopbackForTest(true)
+	defer security.SetAllowLoopbackForTest(false)
+
 	// 32-byte raw key (hex-encoded = 64 chars accepted by DeriveKey).
 	const key = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
 
@@ -204,6 +226,9 @@ func TestHTTP_EncryptedAuthHeader_Decrypted(t *testing.T) {
 }
 
 func TestHTTP_ResponseBodyCappedAt1MiB(t *testing.T) {
+	security.SetAllowLoopbackForTest(true)
+	defer security.SetAllowLoopbackForTest(false)
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		// Write 2 MiB of 'x' — handler must cap at 1 MiB and not panic.
