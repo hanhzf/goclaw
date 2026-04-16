@@ -200,6 +200,25 @@ func SenderIDFromContext(ctx context.Context) string {
 	return ""
 }
 
+// ActorIDFromContext returns the acting principal — the entity performing
+// the action. In group chats (Telegram/Discord) this is the individual
+// sender; in DMs / HTTP / cron it is the same as UserIDFromContext.
+//
+// Use for:
+//   - permission checks (file writers, role gates)
+//   - audit trails (initiated_by, owner_id)
+//   - ownership fields (skill publisher, cron owner)
+//
+// DO NOT use for:
+//   - memory / KG / session scope (use UserIDFromContext / MemoryUserID / KGUserID)
+//   - file-system or per-scope isolation (scope = group principal on purpose)
+func ActorIDFromContext(ctx context.Context) string {
+	if sid := SenderIDFromContext(ctx); sid != "" {
+		return sid
+	}
+	return UserIDFromContext(ctx)
+}
+
 // WithSelfEvolve returns a new context with the self-evolve flag.
 func WithSelfEvolve(ctx context.Context, v bool) context.Context {
 	return context.WithValue(ctx, SelfEvolveKey, v)
