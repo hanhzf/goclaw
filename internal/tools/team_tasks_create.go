@@ -204,6 +204,11 @@ func (t *TeamTasksTool) executeCreate(ctx context.Context, args map[string]any) 
 	if rootSpanID := tracing.ParentSpanIDFromContext(ctx); rootSpanID != uuid.Nil {
 		taskMeta[TaskMetaOriginRootSpan] = rootSpanID.String()
 	}
+	// Persist the real acting sender so deferred/dashboard dispatches can
+	// restore permission attribution when the teammate runs (#915 Flow F).
+	if sender := store.SenderIDFromContext(ctx); sender != "" {
+		taskMeta["origin_sender_id"] = sender
+	}
 
 	task := &store.TeamTaskData{
 		TeamID:           team.ID,

@@ -398,6 +398,18 @@ func (m *TeamsMethods) dispatchTaskToAgent(ctx context.Context, task *store.Team
 			meta["origin_local_key"] = lk
 		}
 	}
+	// Preserve acting sender through dashboard dispatch: prefer the live WS
+	// caller's sender (rarely set) then fall back to the stored origin sender
+	// from the task at creation time. Without this, group-scope tasks
+	// dispatched from the dashboard would hit the empty-sender DENY rule in
+	// CheckFileWriterPermission (#915 Flow F).
+	if dispatchSender := store.SenderIDFromContext(ctx); dispatchSender != "" {
+		meta["origin_sender_id"] = dispatchSender
+	} else if task.Metadata != nil {
+		if taskSender, _ := task.Metadata["origin_sender_id"].(string); taskSender != "" {
+			meta["origin_sender_id"] = taskSender
+		}
+	}
 
 	m.msgBus.PublishInbound(bus.InboundMessage{
 		Channel:  "system",
