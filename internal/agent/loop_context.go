@@ -67,6 +67,12 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 	if req.SenderName != "" {
 		ctx = store.WithSenderName(ctx, req.SenderName)
 	}
+	// Inject caller role so RBAC-aware permission checks (CheckFileWriterPermission,
+	// CheckCronPermission) can bypass per-user grants for authenticated admins
+	// dispatched from dashboard or other trusted sources (#915).
+	if req.Role != "" {
+		ctx = store.WithRole(ctx, req.Role)
+	}
 	// Inject global + per-agent builtin tool settings (tier 1+3).
 	// Media/provider-chain tools read the merged view via BuiltinToolSettingsFromCtx.
 	if l.builtinToolSettings != nil {
@@ -150,6 +156,9 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 		}
 		if l.shouldShareKnowledgeGraph() {
 			ctx = store.WithSharedKG(ctx)
+		}
+		if l.shouldShareSessions() {
+			ctx = store.WithSharedSessions(ctx)
 		}
 		if err := os.MkdirAll(effectiveWorkspace, 0755); err != nil {
 			slog.Warn("failed to create user workspace directory", "workspace", effectiveWorkspace, "user", req.UserID, "error", err)
@@ -314,6 +323,7 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 		SelfEvolve:          l.selfEvolve,
 		SharedMemory:        store.IsSharedMemory(ctx),
 		SharedKG:            store.IsSharedKG(ctx),
+		SharedSessions:      store.IsSharedSessions(ctx),
 		RestrictToWorkspace: l.restrictToWs != nil && *l.restrictToWs,
 		BuiltinToolSettings: l.builtinToolSettings,
 		ChannelType:         req.ChannelType,
