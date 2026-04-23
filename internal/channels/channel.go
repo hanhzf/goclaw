@@ -23,6 +23,16 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
+type ctxKey string
+
+const (
+	// ContextKeyRunID is used to pass the execution run ID through the streaming context
+	// to allow channels (like DingTalk) to deduplicate and reuse resources.
+	ContextKeyRunID ctxKey = "run_id"
+	ContextKeyMsgID ctxKey = "msg_id"
+	ContextKeyConversationID ctxKey = "conversation_id"
+)
+
 // PolicyResult is returned by BaseChannel policy checks.
 type PolicyResult int
 
@@ -80,6 +90,7 @@ const (
 	TypeWhatsApp     = "whatsapp"
 	TypeZaloOA       = "zalo_oa"
 	TypeZaloPersonal = "zalo_personal"
+	TypeDingtalk     = "dingtalk"
 )
 
 // Channel defines the interface that all channel implementations must satisfy.

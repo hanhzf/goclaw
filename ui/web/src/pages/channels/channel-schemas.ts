@@ -81,6 +81,10 @@ export const credentialsSchema: Record<string, FieldDef[]> = {
     { key: "page_access_token", label: "Page Access Token", type: "password", required: true, help: "Page-level token from Pancake dashboard → Page Settings" },
     { key: "webhook_secret", label: "Webhook Secret (Optional)", type: "password", help: "HMAC-SHA256 secret for webhook signature verification. Leave empty to skip verification." },
   ],
+  dingtalk: [
+    { key: "app_key", label: "App Key", type: "text", required: true, placeholder: "DingTalk App Key" },
+    { key: "app_secret", label: "App Secret", type: "password", required: true },
+  ],
 };
 
 // --- Pancake platform options ---
@@ -218,6 +222,17 @@ export const configSchema: Record<string, FieldDef[]> = {
       showWhen: { key: "features.auto_react", value: "true" },
       help: "Never react to comments from these user IDs." },
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "Sender IDs to whitelist. Empty = accept all." },
+    { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit" },
+  ],
+  dingtalk: [
+    { key: "robot_code", label: "Robot Code", type: "text", help: "Optional: Falls back to App Key if empty" },
+    { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "pairing" },
+    { key: "group_policy", label: "Group Policy", type: "select", options: groupPolicyOptions, defaultValue: "pairing" },
+    { key: "require_mention", label: "Require @mention in groups", type: "boolean", defaultValue: true },
+    { key: "history_limit", label: "Group History Limit", type: "number", defaultValue: 50, help: "Max pending group messages for context (0 = disabled)" },
+    { key: "dm_stream", label: "DM Streaming", type: "boolean", defaultValue: true, help: "Stream response progressively in DMs (AI Card)" },
+    { key: "group_stream", label: "Group Streaming", type: "boolean", defaultValue: true, help: "Stream response progressively in groups (AI Card)" },
+    { key: "allow_from", label: "Allowed Users", type: "tags", help: "DingTalk user IDs allowed to interact" },
     { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit" },
   ],
 };

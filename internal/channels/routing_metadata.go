@@ -5,15 +5,19 @@ package channels
 // replies, block replies, retries, and placeholder updates all land in the
 // correct thread / topic / subgroup routing bucket on each channel.
 var routingMetaKeys = []string{
-	"message_thread_id",      // telegram forum topics
-	"local_key",              // composite chat-id suffix
-	"group_id",               // legacy group identifier
-	"feishu_reply_target_id", // feishu/lark thread reply routing
-	"fb_mode",                // facebook messenger vs comment routing
-	"sender_id",              // facebook sender for first-inbox / pancake sender for first-inbox
-	"page_id",                // facebook page routing
-	"reply_to_comment_id",    // facebook/pancake comment reply target
-	"pancake_mode",           // pancake inbox vs comment routing
+	"message_thread_id",            // telegram forum topics
+	"local_key",                    // composite chat-id suffix
+	"group_id",                     // legacy group identifier
+	"feishu_reply_target_id",       // feishu/lark thread reply routing
+	"fb_mode",                      // facebook messenger vs comment routing
+	"sender_id",                    // facebook sender for first-inbox / pancake sender for first-inbox
+	"page_id",                      // facebook page routing
+	"reply_to_comment_id",          // facebook/pancake comment reply target
+	"pancake_mode",                 // pancake inbox vs comment routing
+	"msg_id",                       // dingtalk AIGC card replacement target
+	"conversation_id",              // dingtalk conversation ID (emotion recall, card routing)
+	"session_webhook",              // dingtalk webhook dynamic reply URL
+	"session_webhook_expired_time", // dingtalk webhook expiration
 }
 
 var finalReplyMetaKeys = append([]string{

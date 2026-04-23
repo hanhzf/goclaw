@@ -14,6 +14,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/discord"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/feishu"
+	"github.com/nextlevelbuilder/goclaw/internal/channels/dingtalk"
 	slackchannel "github.com/nextlevelbuilder/goclaw/internal/channels/slack"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/telegram"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/whatsapp"
@@ -140,6 +141,18 @@ func registerConfigChannels(cfg *config.Config, channelMgr *channels.Manager, ms
 				channelMgr.RegisterChannel(channels.TypeFeishu, f)
 				slog.Info("feishu/lark channel enabled (config)")
 			}
+		}
+	}
+
+	if cfg.Channels.Dingtalk.Enabled {
+		if cfg.Channels.Dingtalk.AppKey == "" {
+			recordMissingConfig(channels.TypeDingtalk, "Set channels.dingtalk.app_key in config.")
+		} else if d, err := dingtalk.New(cfg.Channels.Dingtalk, msgBus, pgStores.Pairing); err != nil {
+			channelMgr.RecordFailure(channels.TypeDingtalk, "", err)
+			slog.Error("failed to initialize dingtalk channel", "error", err)
+		} else {
+			channelMgr.RegisterChannel(channels.TypeDingtalk, d)
+			slog.Info("dingtalk channel enabled (config)")
 		}
 	}
 }

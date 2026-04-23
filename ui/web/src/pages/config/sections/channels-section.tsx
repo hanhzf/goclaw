@@ -20,6 +20,7 @@ const CHANNEL_META: Record<string, { label: string; secretEnv: string; secretFie
   whatsapp: { label: "WhatsApp", secretEnv: "", secretField: "" },
   zalo: { label: "Zalo", secretEnv: "GOCLAW_ZALO_TOKEN", secretField: "token" },
   feishu: { label: "Feishu / Lark", secretEnv: "GOCLAW_FEISHU_APP_SECRET", secretField: "app_secret" },
+  dingtalk: { label: "DingTalk", secretEnv: "GOCLAW_DINGTALK_APP_SECRET", secretField: "app_secret" },
 };
 
 const DM_POLICIES = ["pairing", "allowlist", "open", "disabled"];

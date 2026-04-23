@@ -38,6 +38,13 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 		ctx = store.WithTenantID(ctx, rc.TenantID)
 	}
 
+	// Inject run metadata into context for streaming channels
+	ctx = context.WithValue(ctx, ContextKeyRunID, runID)
+	ctx = context.WithValue(ctx, ContextKeyMsgID, rc.MessageID)
+	if convID, ok := rc.Metadata["conversation_id"]; ok {
+		ctx = context.WithValue(ctx, ContextKeyConversationID, convID)
+	}
+
 	// Forward to StreamingChannel (only when streaming is enabled for this run).
 	// Without this gate, channels that implement StreamingChannel but have streaming
 	// disabled (e.g. group_stream=false) would create stream messages AND emit

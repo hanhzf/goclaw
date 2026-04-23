@@ -216,7 +216,9 @@
       "help": "Optional: User OAuth Token for custom bot identity. Leave empty to use default bot identity."
     },
     "app_id": { "label": "App ID" },
+    "app_key": { "label": "App Key" },
     "app_secret": { "label": "App Secret" },
+    "robot_code": { "label": "Robot Code", "help": "Optional. Defaults to App Key if empty." },
     "encrypt_key": { "label": "Encrypt Key", "help": "For webhook mode" },
     "verification_token": {
       "label": "Verification Token",

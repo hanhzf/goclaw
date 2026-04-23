@@ -12,6 +12,7 @@ RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 WORKDIR /app
 # Copy .npmrc first so pnpm resolves musl native bindings (needed on Alpine).
 # The lockfile already includes musl entries thanks to supportedArchitectures in .npmrc.
+RUN npm config set registry https://registry.npmmirror.com
 COPY ui/web/.npmrc ui/web/package.json ui/web/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY ui/web/ .
@@ -25,6 +26,7 @@ FROM embedui-${ENABLE_EMBEDUI} AS web-dist
 
 # ── Stage 1: Build Go ──
 FROM golang:1.26-bookworm AS builder
+ENV GOPROXY=https://goproxy.cn,direct
 
 WORKDIR /src
 
@@ -51,13 +53,13 @@ RUN set -eux; \
     TAGS=""; \
     if [ "$ENABLE_EMBEDUI" = "true" ]; then TAGS="embedui"; fi; \
     if [ "$ENABLE_OTEL" = "true" ]; then \
-        if [ -n "$TAGS" ]; then TAGS="$TAGS,otel"; else TAGS="otel"; fi; \
+    if [ -n "$TAGS" ]; then TAGS="$TAGS,otel"; else TAGS="otel"; fi; \
     fi; \
     if [ "$ENABLE_TSNET" = "true" ]; then \
-        if [ -n "$TAGS" ]; then TAGS="$TAGS,tsnet"; else TAGS="tsnet"; fi; \
+    if [ -n "$TAGS" ]; then TAGS="$TAGS,tsnet"; else TAGS="tsnet"; fi; \
     fi; \
     if [ "$ENABLE_REDIS" = "true" ]; then \
-        if [ -n "$TAGS" ]; then TAGS="$TAGS,redis"; else TAGS="redis"; fi; \
+    if [ -n "$TAGS" ]; then TAGS="$TAGS,redis"; else TAGS="redis"; fi; \
     fi; \
     if [ -n "$TAGS" ]; then TAGS="-tags $TAGS"; fi; \
     CGO_ENABLED=0 GOOS=linux \
@@ -86,27 +88,27 @@ COPY docker/requirements-base.txt docker/requirements-skills.txt /tmp/
 RUN set -eux; \
     apk add --no-cache ca-certificates wget su-exec; \
     if [ "$ENABLE_SANDBOX" = "true" ]; then \
-        apk add --no-cache docker-cli; \
+    apk add --no-cache docker-cli; \
     fi; \
     if [ "$ENABLE_FULL_SKILLS" = "true" ]; then \
-        apk add --no-cache python3 py3-pip nodejs npm pandoc github-cli poppler-utils bash; \
-        pip3 install --no-cache-dir --break-system-packages \
-            -r /tmp/requirements-base.txt -r /tmp/requirements-skills.txt; \
-        npm install -g --cache /tmp/npm-cache docx@^9.6.1 pptxgenjs@^4.0.1; \
-        rm -rf /tmp/npm-cache /root/.cache /var/cache/apk/*; \
+    apk add --no-cache python3 py3-pip nodejs npm pandoc github-cli poppler-utils bash; \
+    pip3 install --no-cache-dir --break-system-packages \
+    -r /tmp/requirements-base.txt -r /tmp/requirements-skills.txt; \
+    npm install -g --cache /tmp/npm-cache docx@^9.6.1 pptxgenjs@^4.0.1; \
+    rm -rf /tmp/npm-cache /root/.cache /var/cache/apk/*; \
     else \
-        if [ "$ENABLE_PYTHON" = "true" ]; then \
-            apk add --no-cache python3 py3-pip; \
-            pip3 install --no-cache-dir --break-system-packages \
-                -r /tmp/requirements-base.txt; \
-        fi; \
-        if [ "$ENABLE_NODE" = "true" ] || [ "$ENABLE_CLAUDE_CLI" = "true" ]; then \
-            apk add --no-cache nodejs npm; \
-        fi; \
+    if [ "$ENABLE_PYTHON" = "true" ]; then \
+    apk add --no-cache python3 py3-pip; \
+    pip3 install --no-cache-dir --break-system-packages \
+    -r /tmp/requirements-base.txt; \
+    fi; \
+    if [ "$ENABLE_NODE" = "true" ] || [ "$ENABLE_CLAUDE_CLI" = "true" ]; then \
+    apk add --no-cache nodejs npm; \
+    fi; \
     fi; \
     if [ "$ENABLE_CLAUDE_CLI" = "true" ]; then \
-        npm install -g --cache /tmp/npm-cache @anthropic-ai/claude-code@^2.1.91; \
-        rm -rf /tmp/npm-cache; \
+    npm install -g --cache /tmp/npm-cache @anthropic-ai/claude-code@^2.1.91; \
+    rm -rf /tmp/npm-cache; \
     fi; \
     rm -f /tmp/requirements-base.txt /tmp/requirements-skills.txt
 
@@ -130,10 +132,10 @@ RUN set -eux; \
     sed -i 's/\r$//' /app/docker-entrypoint.sh; \
     cd /app/bundled-skills; \
     for skill in docx pptx xlsx; do \
-        if [ -d "${skill}/scripts" ] && [ ! -d "${skill}/scripts/office" ]; then \
-            rm -f "${skill}/scripts/office"; \
-            cp -r _shared/office "${skill}/scripts/office"; \
-        fi; \
+    if [ -d "${skill}/scripts" ] && [ ! -d "${skill}/scripts/office" ]; then \
+    rm -f "${skill}/scripts/office"; \
+    cp -r _shared/office "${skill}/scripts/office"; \
+    fi; \
     done
 
 RUN chmod +x /app/docker-entrypoint.sh && \
@@ -144,8 +146,8 @@ RUN chmod +x /app/docker-entrypoint.sh && \
 # while pip/npm subdirs are goclaw-owned (runtime installs by the app process).
 # Symlink .claude → data volume so Claude CLI credentials persist across container recreates.
 RUN mkdir -p /app/workspace /app/data/.runtime/pip /app/data/.runtime/npm-global/lib \
-        /app/data/.runtime/pip-cache /app/data/.runtime/bin /app/data/.claude /app/skills \
-        /app/tsnet-state /app/.goclaw \
+    /app/data/.runtime/pip-cache /app/data/.runtime/bin /app/data/.claude /app/skills \
+    /app/tsnet-state /app/.goclaw \
     && ln -s /app/data/.claude /app/.claude \
     && touch /app/data/.runtime/apk-packages \
     && chown -R goclaw:goclaw /app/workspace /app/skills /app/tsnet-state /app/.goclaw \

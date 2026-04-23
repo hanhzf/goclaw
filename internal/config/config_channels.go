@@ -20,6 +20,7 @@ type ChannelsConfig struct {
 	Zalo              ZaloConfig               `json:"zalo"`
 	ZaloPersonal      ZaloPersonalConfig       `json:"zalo_personal"`
 	Feishu            FeishuConfig             `json:"feishu"`
+	Dingtalk          DingtalkConfig           `json:"dingtalk"`
 	PendingCompaction *PendingCompactionConfig `json:"pending_compaction,omitempty"` // global pending message compaction settings
 }
 
@@ -192,6 +193,21 @@ type FeishuConfig struct {
 	STTTenantID       string              `json:"stt_tenant_id,omitempty"`
 	STTTimeoutSeconds int                 `json:"stt_timeout_seconds,omitempty"`
 	VoiceAgentID      string              `json:"voice_agent_id,omitempty"`
+}
+
+type DingtalkConfig struct {
+	Enabled        bool                `json:"enabled"`
+	AppKey         string              `json:"app_key"`
+	AppSecret      string              `json:"app_secret"`
+	RobotCode      string              `json:"robot_code,omitempty"`      // optional: manual robot code override (default: AppKey)
+	AllowFrom      FlexibleStringSlice `json:"allow_from"`
+	DMPolicy       string              `json:"dm_policy,omitempty"`       // "pairing" (default), "allowlist", "open", "disabled"
+	GroupPolicy    string              `json:"group_policy,omitempty"`    // "open" (default), "allowlist", "disabled"
+	RequireMention *bool               `json:"require_mention,omitempty"` // require @bot mention in groups (default true)
+	DMStream       *bool               `json:"dm_stream,omitempty"`       // enable AI card streaming for DMs (default false)
+	GroupStream    *bool               `json:"group_stream,omitempty"`    // enable AI card streaming for groups (default false)
+	HistoryLimit   int                 `json:"history_limit,omitempty"`   // max pending group messages for context (default 50, 0=disabled)
+	BlockReply     *bool               `json:"block_reply,omitempty"`     // override gateway block_reply (nil = inherit)
 }
 
 // ProvidersConfig maps provider name to its config.
