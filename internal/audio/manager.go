@@ -2,8 +2,10 @@ package audio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 )
 
 // ctxKeyChannel is the context key for the current channel name (e.g. "telegram").
@@ -156,6 +158,24 @@ func (m *Manager) AutoMode() AutoMode { return m.auto }
 // HasProviders reports whether any TTS provider is registered.
 func (m *Manager) HasProviders() bool { return len(m.ttsProviders) > 0 }
 
+// ListCapabilities iterates all registered TTS providers and returns their
+// capability schemas. Providers implementing DescribableProvider contribute
+// their full schema; others contribute a minimal stub {Provider, DisplayName}.
+func (m *Manager) ListCapabilities() []ProviderCapabilities {
+	out := make([]ProviderCapabilities, 0, len(m.ttsProviders))
+	for _, p := range m.ttsProviders {
+		if dp, ok := p.(DescribableProvider); ok {
+			out = append(out, dp.Capabilities())
+		} else {
+			out = append(out, ProviderCapabilities{
+				Provider:    p.Name(),
+				DisplayName: p.Name(),
+			})
+		}
+	}
+	return out
+}
+
 // ---- TTS dispatch ----
 
 // Synthesize uses the primary provider.
@@ -273,23 +293,59 @@ func (m *Manager) resolveSFXChain() []string {
 // SynthesizeWithFallback tries primary first, then any other registered
 // provider on error. Returns first success or aggregate failure.
 func (m *Manager) SynthesizeWithFallback(ctx context.Context, text string, opts TTSOptions) (*SynthResult, error) {
+	return m.SynthesizeWithFallbackAdapted(ctx, text, opts, nil)
+}
+
+// SynthesizeWithFallbackAdapted is like SynthesizeWithFallback but applies
+// AdaptAgentParams(genericAgentParams, providerName) per-attempt before
+// synthesizing. This is the Finding #1 fix: each fallback attempt receives
+// provider-native params rather than the primary's adapted keys.
+//
+// genericAgentParams must use the generic allow-list keys (speed, emotion, style).
+// Passing nil is safe and produces the same behaviour as SynthesizeWithFallback.
+func (m *Manager) SynthesizeWithFallbackAdapted(ctx context.Context, text string, opts TTSOptions, genericAgentParams map[string]any) (*SynthResult, error) {
+	var providerErrs []error
 	if p, ok := m.ttsProviders[m.primary]; ok {
-		if result, err := p.Synthesize(ctx, text, opts); err == nil {
+		attemptOpts := m.withAdaptedParams(opts, m.primary, genericAgentParams)
+		if result, err := p.Synthesize(ctx, text, attemptOpts); err == nil {
 			return result, nil
 		} else {
 			slog.Warn("tts primary provider failed, trying fallback", "provider", m.primary, "error", err)
+			providerErrs = append(providerErrs, fmt.Errorf("%s: %w", m.primary, err))
 		}
 	}
 	for name, p := range m.ttsProviders {
 		if name == m.primary {
 			continue
 		}
-		result, err := p.Synthesize(ctx, text, opts)
+		attemptOpts := m.withAdaptedParams(opts, name, genericAgentParams)
+		result, err := p.Synthesize(ctx, text, attemptOpts)
 		if err == nil {
 			slog.Info("tts fallback succeeded", "provider", name)
 			return result, nil
 		}
 		slog.Warn("tts fallback provider failed", "provider", name, "error", err)
+		providerErrs = append(providerErrs, fmt.Errorf("%s: %w", name, err))
 	}
-	return nil, fmt.Errorf("all tts providers failed")
+	if len(providerErrs) == 0 {
+		return nil, fmt.Errorf("no tts providers registered")
+	}
+	// errors.Join preserves all sentinel errors so errors.Is(err, sentinel) works downstream.
+	return nil, errors.Join(providerErrs...)
+}
+
+// withAdaptedParams returns a copy of opts with genericAgentParams adapted
+// for providerName merged in. If genericAgentParams is nil or adaptation
+// produces no keys, opts is returned unchanged.
+func (m *Manager) withAdaptedParams(opts TTSOptions, providerName string, genericAgentParams map[string]any) TTSOptions {
+	adapted := AdaptAgentParams(genericAgentParams, providerName)
+	if len(adapted) == 0 {
+		return opts
+	}
+	out := opts
+	merged := make(map[string]any, len(opts.Params)+len(adapted))
+	maps.Copy(merged, opts.Params)
+	maps.Copy(merged, adapted)
+	out.Params = merged
+	return out
 }
