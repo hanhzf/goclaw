@@ -28,9 +28,10 @@ type ctxKey string
 const (
 	// ContextKeyRunID is used to pass the execution run ID through the streaming context
 	// to allow channels (like DingTalk) to deduplicate and reuse resources.
-	ContextKeyRunID ctxKey = "run_id"
-	ContextKeyMsgID ctxKey = "msg_id"
+	ContextKeyRunID          ctxKey = "run_id"
+	ContextKeyMsgID          ctxKey = "msg_id"
 	ContextKeyConversationID ctxKey = "conversation_id"
+	ContextKeyMetadata       ctxKey = "metadata"
 )
 
 // PolicyResult is returned by BaseChannel policy checks.

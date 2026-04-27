@@ -41,6 +41,7 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 	// Inject run metadata into context for streaming channels
 	ctx = context.WithValue(ctx, ContextKeyRunID, runID)
 	ctx = context.WithValue(ctx, ContextKeyMsgID, rc.MessageID)
+	ctx = context.WithValue(ctx, ContextKeyMetadata, rc.Metadata)
 	if convID, ok := rc.Metadata["conversation_id"]; ok {
 		ctx = context.WithValue(ctx, ContextKeyConversationID, convID)
 	}

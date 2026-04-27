@@ -23,11 +23,12 @@ func (c *DingtalkChannel) processInbound(ctx context.Context, event *InboundEven
 	}
 
 	metadata := map[string]string{
-		"sender_nick":     event.SenderNick,
-		"chat_title":      event.ChatTitle,
-		"msg_id":          event.MsgID,
-		"message_id":      event.MsgID, // GoClaw standard key used by RegisterRun → RunContext.MessageID
-		"conversation_id": event.ConversationID,
+		"sender_nick":       event.SenderNick,
+		"chat_title":        event.ChatTitle,
+		"msg_id":            event.MsgID,
+		"message_id":        event.MsgID, // GoClaw standard key used by RegisterRun → RunContext.MessageID
+		"conversation_id":   event.ConversationID,
+		"dingtalk_staff_id": event.SenderStaffID,
 	}
 
 	// Trigger "Thinking" emotion sticker (fire-and-forget)
@@ -142,4 +143,27 @@ func formatMarkdown(text string) string {
 	// DingTalk markdown is quite picky about tables and line breaks.
 	// We can add some common fixes here if needed.
 	return text
+}
+
+// resolveStaffID translates a person_code back into a DingTalk staffID.
+// This is used for outbound messages to ensure they are sent to the real user ID.
+func (c *DingtalkChannel) resolveStaffID(personCode string) string {
+	if !c.cfg.OrgCenter.Enabled || personCode == "" {
+		return personCode
+	}
+
+	var staffID string
+	c.idCache.Range(func(key, value interface{}) bool {
+		mapping := value.(UserMapping)
+		if mapping.PersonCode == personCode {
+			staffID = mapping.StaffID
+			return false // break
+		}
+		return true
+	})
+
+	if staffID != "" {
+		return staffID
+	}
+	return personCode
 }

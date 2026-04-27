@@ -150,7 +150,6 @@ func (s *CardStream) Stop(ctx context.Context) error {
 
 	s.stopped = true
 
-
 	// If card was never created (lazy stream stopped before any answer arrived),
 	// there is nothing to finalize. Just recall the emotion sticker and return.
 	if !s.cardCreated {
@@ -211,29 +210,23 @@ func (c *DingtalkChannel) ReasoningStreamEnabled() bool {
 }
 
 // CreateStream handles the lifecycle of DingTalk streams.
-//
-// firstStream=true  → Lazy CardStream: card only created on first answer content.
-//                     If the model has thinking, this stream only sees reasoning text
-//                     and gets stopped before any card is created → zero empty bubbles.
-//                     If no thinking, first chunk triggers lazy card creation → works fine.
-//
-// firstStream=false → Eager CardStream: card created immediately for the answer phase.
-//                     This path is taken when transitioning from thinking→answer.
 func (c *DingtalkChannel) CreateStream(ctx context.Context, chatID string, firstStream bool) (channels.ChannelStream, error) {
 	msgID, _ := ctx.Value(channels.ContextKeyMsgID).(string)
 	convID, _ := ctx.Value(channels.ContextKeyConversationID).(string)
 
+	// Resolve the actual DingTalk target ID by reverse-lookup
+	targetID := c.resolveStaffID(chatID)
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if firstStream {
-		return NewCardStream(c, c.client, chatID, "", msgID, convID, true, false), nil
+		return NewCardStream(c, c.client, targetID, "", msgID, convID, true, false), nil
 	}
 
 	// Eager answer stream — create card immediately.
 	outTrackID := fmt.Sprintf("run_%d", time.Now().UnixNano())
-	err := c.client.CreateAICard(ctx, c.robotCode, chatID, "", outTrackID, "✍️ 环宝 正在回答...")
+	err := c.client.CreateAICard(ctx, c.robotCode, targetID, "", outTrackID, "✍️ 环宝 正在回答...")
 	if err != nil {
 		return nil, fmt.Errorf("create answer card: %w", err)
 	}
@@ -242,7 +235,7 @@ func (c *DingtalkChannel) CreateStream(ctx context.Context, chatID string, first
 		c.msgIDToCardID[msgID] = cardMapping{cardID: outTrackID, createdAt: time.Now()}
 	}
 
-	return NewCardStream(c, c.client, chatID, outTrackID, msgID, convID, false, true), nil
+	return NewCardStream(c, c.client, targetID, outTrackID, msgID, convID, false, true), nil
 }
 
 func (c *DingtalkChannel) FinalizeStream(ctx context.Context, chatID string, stream channels.ChannelStream) {

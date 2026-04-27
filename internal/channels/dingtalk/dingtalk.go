@@ -155,6 +155,9 @@ func (c *DingtalkChannel) Stop(ctx context.Context) error {
 func (c *DingtalkChannel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 	msgID := msg.Metadata["msg_id"]
 
+	// Determine the actual DingTalk target ID by reverse-lookup
+	targetID := c.resolveStaffID(msg.ChatID)
+
 	// 1. Check if this message has already been delivered or is being handled via streaming
 	if msgID != "" {
 		c.mu.RLock()
@@ -168,8 +171,6 @@ func (c *DingtalkChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 		}
 
 		// 1.1 Fallback to msgID (DingTalk AIGC proxy automatic skeleton card)
-		// This handles the case where streaming failed to create its own card, 
-		// but DingTalk provided a proxy card.
 		err := c.client.UpdateAICard(ctx, msgID, msg.Content, "✅ 环宝 已回答", "3", true)
 		if err == nil {
 			slog.Debug("dingtalk: successfully updated automatic skeleton card (msgID proxy)", "outTrackId", msgID)
@@ -179,7 +180,7 @@ func (c *DingtalkChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 
 	// 2. If no card found/updated, proactively create an AI Card
 	fallbackCardID := fmt.Sprintf("card_fb_%d", time.Now().UnixNano())
-	if err := c.client.CreateAICard(ctx, c.robotCode, msg.ChatID, "", fallbackCardID, "✅ 环宝 已回答"); err == nil {
+	if err := c.client.CreateAICard(ctx, c.robotCode, targetID, "", fallbackCardID, "✅ 环宝 已回答"); err == nil {
 		if err := c.client.UpdateAICard(ctx, fallbackCardID, msg.Content, "✅ 环宝 已回答", "3", true); err == nil {
 			slog.Debug("dingtalk: successfully created and populated proactive AI card", "outTrackId", fallbackCardID)
 			return nil
@@ -199,8 +200,8 @@ func (c *DingtalkChannel) Send(ctx context.Context, msg bus.OutboundMessage) err
 	}
 
 	// 4. Final fallback: standard raw text message API
-	slog.Info("dingtalk: falling back to standard text message", "chatID", msg.ChatID)
-	return c.client.SendMessage(ctx, c.robotCode, msg.ChatID, msg.Content)
+	slog.Info("dingtalk: falling back to standard text message", "targetID", targetID)
+	return c.client.SendMessage(ctx, c.robotCode, targetID, msg.Content)
 }
 
 
