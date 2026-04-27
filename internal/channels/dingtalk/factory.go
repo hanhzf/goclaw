@@ -16,13 +16,14 @@ type dingtalkCreds struct {
 }
 
 type dingtalkInstanceConfig struct {
-	AllowFrom      []string `json:"allow_from,omitempty"`
-	DMPolicy       string   `json:"dm_policy,omitempty"`
-	GroupPolicy    string   `json:"group_policy,omitempty"`
-	RequireMention *bool    `json:"require_mention,omitempty"`
-	DMStream       *bool    `json:"dm_stream,omitempty"`
-	GroupStream    *bool    `json:"group_stream,omitempty"`
-	HistoryLimit    int      `json:"history_limit,omitempty"`
+	AllowFrom      []string               `json:"allow_from,omitempty"`
+	DMPolicy       string                 `json:"dm_policy,omitempty"`
+	GroupPolicy    string                 `json:"group_policy,omitempty"`
+	RequireMention *bool                  `json:"require_mention,omitempty"`
+	DMStream       *bool                  `json:"dm_stream,omitempty"`
+	GroupStream    *bool                  `json:"group_stream,omitempty"`
+	HistoryLimit   int                    `json:"history_limit,omitempty"`
+	OrgCenter      config.OrgCenterConfig `json:"org_center,omitempty"`
 }
 
 func Factory(name string, creds json.RawMessage, cfg json.RawMessage,
@@ -56,6 +57,7 @@ func Factory(name string, creds json.RawMessage, cfg json.RawMessage,
 		DMStream:       ic.DMStream,
 		GroupStream:    ic.GroupStream,
 		HistoryLimit:   ic.HistoryLimit,
+		OrgCenter:      ic.OrgCenter,
 	}
 
 	if dtCfg.GroupPolicy == "" {

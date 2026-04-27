@@ -195,6 +195,16 @@ type FeishuConfig struct {
 	VoiceAgentID      string              `json:"voice_agent_id,omitempty"`
 }
 
+type OrgCenterConfig struct {
+	Enabled   bool   `json:"enabled"`
+	Mode      string `json:"mode"`       // "real" or "mock"
+	Endpoint  string `json:"endpoint"`   // Base URL
+	AccessKey string `json:"access_key"` // Header: Access-Key
+	SecretKey string `json:"secret_key"` // Header: Secret-Key
+	MockCode  string `json:"mock_code"`  // person_code for mock mode
+	TTLHours  int    `json:"ttl_hours,omitempty"` // cache TTL in hours (default 100)
+}
+
 type DingtalkConfig struct {
 	Enabled        bool                `json:"enabled"`
 	AppKey         string              `json:"app_key"`
@@ -208,6 +218,7 @@ type DingtalkConfig struct {
 	GroupStream    *bool               `json:"group_stream,omitempty"`    // enable AI card streaming for groups (default false)
 	HistoryLimit   int                 `json:"history_limit,omitempty"`   // max pending group messages for context (default 50, 0=disabled)
 	BlockReply     *bool               `json:"block_reply,omitempty"`     // override gateway block_reply (nil = inherit)
+	OrgCenter      OrgCenterConfig     `json:"org_center,omitempty"`      // integration with external Organization Center
 }
 
 // ProvidersConfig maps provider name to its config.

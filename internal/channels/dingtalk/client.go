@@ -377,3 +377,20 @@ func (c *DingtalkClient) SendMessage(ctx context.Context, robotCode string, targ
 	_, err := c.SendOTO(ctx, robotCode, []string{targetID}, "sampleText", string(msgParam))
 	return err
 }
+
+// GetUserInfo fetches detailed information about a user, including mobile phone number.
+// Requires "Contact personal info read" permission in DingTalk console.
+func (c *DingtalkClient) GetUserInfo(ctx context.Context, staffID string) (map[string]any, error) {
+	path := fmt.Sprintf("/v1.0/contact/users/%s", staffID)
+	resp, err := c.doRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, fmt.Errorf("decode user info: %w", err)
+	}
+
+	return result, nil
+}

@@ -2,8 +2,10 @@ package dingtalk
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 	"strings"
+	"time"
 )
 
 
@@ -41,7 +43,7 @@ func (c *DingtalkChannel) processInbound(ctx context.Context, event *InboundEven
 	}
 
 
-	userID := event.SenderStaffID
+	userID := c.resolvePersonCode(ctx, event.SenderStaffID)
 	if userID == "" {
 		userID = event.SenderID
 	}
@@ -66,6 +68,73 @@ func (c *DingtalkChannel) processInbound(ctx context.Context, event *InboundEven
 
 	return nil
 
+}
+
+// resolvePersonCode translates a DingTalk staffID into a business person_code.
+// It uses a memory cache, falls back to DingTalk API + OrgCenter API,
+// and persists results to a local JSON file for debugging.
+func (c *DingtalkChannel) resolvePersonCode(ctx context.Context, staffID string) string {
+	if staffID == "" || !c.cfg.OrgCenter.Enabled {
+		return staffID
+	}
+
+	// 1. Check Memory Cache
+	if val, ok := c.idCache.Load(staffID); ok {
+		mapping := val.(UserMapping)
+		ttl := time.Duration(c.cfg.OrgCenter.TTLHours) * time.Hour
+		if ttl == 0 {
+			ttl = 100 * time.Hour
+		}
+		if time.Since(mapping.UpdatedAt) < ttl {
+			return mapping.PersonCode
+		}
+	}
+
+	// 2. Resolve via APIs (Real or Mock)
+	var mobile string
+	var personCode string
+	var err error
+
+	if c.cfg.OrgCenter.Mode == "mock" {
+		personCode, err = c.orgCenter.LookupPersonCode(ctx, "")
+		mobile = "MOCK_MOBILE"
+	} else {
+		// Get Mobile from DingTalk
+		userInfo, dtErr := c.client.GetUserInfo(ctx, staffID)
+		if dtErr != nil {
+			slog.Error("dingtalk: failed to get user info for mapping", "staffID", staffID, "error", dtErr)
+			return staffID // Fallback
+		}
+		if m, ok := userInfo["mobile"].(string); ok {
+			mobile = m
+		} else {
+			slog.Warn("dingtalk: user info has no mobile", "staffID", staffID)
+			return staffID
+		}
+
+		// Get personCode from Org Center
+		personCode, err = c.orgCenter.LookupPersonCode(ctx, mobile)
+	}
+
+	if err != nil {
+		slog.Error("dingtalk: identity translation failed", "staffID", staffID, "mobile", mobile, "error", err)
+		return staffID // Fallback
+	}
+
+	// 3. Update Cache & Local Persistence
+	mapping := UserMapping{
+		StaffID:    staffID,
+		Mobile:     mobile,
+		PersonCode: personCode,
+		UpdatedAt:  time.Now(),
+	}
+	c.idCache.Store(staffID, mapping)
+	if err := c.mappingStore.Save(mapping); err != nil {
+		slog.Warn("dingtalk: failed to save identity mapping to file", "error", err)
+	}
+
+	slog.Info("dingtalk: identity translated", "staffID", staffID, "personCode", personCode, "mode", c.cfg.OrgCenter.Mode)
+	return personCode
 }
 
 // FormatMarkdown for DingTalk

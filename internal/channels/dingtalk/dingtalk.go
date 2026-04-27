@@ -39,6 +39,11 @@ type DingtalkChannel struct {
 	msgIDToCardID map[string]cardMapping // msgID -> cardMapping{cardID, createdAt}
 	deliveredMsgs map[string]time.Time   // msgID -> insertion time
 	cleanupDone   chan struct{}
+
+	// Identity Adaptation (Org Center)
+	orgCenter    *OrgCenterClient
+	mappingStore *MappingStore
+	idCache      sync.Map // staffID -> UserMapping
 }
 
 // New creates a new DingtalkChannel.
@@ -70,6 +75,8 @@ func New(cfg config.DingtalkConfig, msgBus *bus.MessageBus, pairingSvc store.Pai
 		robotCode:     robotCode,
 		msgIDToCardID: make(map[string]cardMapping),
 		deliveredMsgs: make(map[string]time.Time),
+		orgCenter:     NewOrgCenterClient(cfg.OrgCenter),
+		mappingStore:  NewMappingStore(),
 	}
 	
 	ch.SetPairingService(pairingSvc)
@@ -83,6 +90,16 @@ func New(cfg config.DingtalkConfig, msgBus *bus.MessageBus, pairingSvc store.Pai
 func (c *DingtalkChannel) Start(ctx context.Context) error {
 	slog.Info("starting dingtalk channel (stream mode)", "name", c.Name())
 	c.MarkStarting("Initializing Stream Mode")
+
+	// Pre-load identity mappings from local file
+	if c.cfg.OrgCenter.Enabled {
+		if mappings, err := c.mappingStore.LoadAll(); err == nil {
+			for k, v := range mappings {
+				c.idCache.Store(k, v)
+			}
+			slog.Info("dingtalk: pre-loaded identity mappings", "count", len(mappings))
+		}
+	}
 
 	// Probe connection
 	if err := c.client.Validate(ctx); err != nil {
