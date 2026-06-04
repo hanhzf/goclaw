@@ -66,18 +66,15 @@ func (c *Channel) processActivity(ctx context.Context, activity *TeamsActivity, 
 	c.dedup.Mark(activity.ID)
 
 	// Extract Sender details
-	senderID := activity.From.AADObjectID
-	if senderID == "" {
-		senderID = activity.From.ID
+	displayName := activity.From.Name
+	if displayName == "" {
+		displayName = activity.From.ID
 	}
+
+	senderID := c.resolver.Resolve(ctx, activity.From.AADObjectID, displayName)
 	if senderID == "" {
 		slog.Warn("teams: empty sender ID")
 		return
-	}
-
-	displayName := activity.From.Name
-	if displayName == "" {
-		displayName = senderID
 	}
 
 	// Determine PeerKind

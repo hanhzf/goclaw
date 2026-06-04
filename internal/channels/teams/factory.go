@@ -56,6 +56,7 @@ func FactoryWithPendingStore(pendingStore store.PendingMessageStore) channels.Ch
 			AllowFrom:      ic.AllowFrom,
 			GroupAllowFrom: ic.GroupAllowFrom,
 			BlockReply:     ic.BlockReply,
+			UserMap:        ic.UserMap,
 		}
 
 		// Secure default: DB loaded instances default to "pairing" for group messages

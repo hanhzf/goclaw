@@ -17,6 +17,7 @@ type teamsInstanceConfig struct {
 	RequireMention *bool    `json:"require_mention,omitempty"`
 	HistoryLimit   int      `json:"history_limit,omitempty"`
 	AllowFrom      []string `json:"allow_from,omitempty"`
-	GroupAllowFrom []string `json:"group_allow_from,omitempty"`
-	BlockReply     *bool    `json:"block_reply,omitempty"`
+	GroupAllowFrom []string          `json:"group_allow_from,omitempty"`
+	BlockReply     *bool             `json:"block_reply,omitempty"`
+	UserMap        map[string]string `json:"user_map,omitempty"`
 }

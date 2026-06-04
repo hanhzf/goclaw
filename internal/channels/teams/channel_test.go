@@ -313,3 +313,96 @@ func TestVerifyChannelInterfaces(t *testing.T) {
 		t.Error("Channel struct does not satisfy channels.WebhookChannel interface")
 	}
 }
+
+type graphMockRoundTripper struct {
+	targetURL string
+}
+
+func (g *graphMockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	u := req.URL.String()
+	u = strings.Replace(u, "https://graph.microsoft.com/v1.0", g.targetURL, 1)
+
+	newReq, err := http.NewRequestWithContext(req.Context(), req.Method, u, req.Body)
+	if err != nil {
+		return nil, err
+	}
+	newReq.Header = req.Header
+	return http.DefaultTransport.RoundTrip(newReq)
+}
+
+func TestUserResolver(t *testing.T) {
+	ctx := context.Background()
+	staticMap := map[string]string{
+		"aad-id-1": "frank@raksmart.com",
+		"aad-id-2": "user2@raksmart.com",
+	}
+
+	// Mock Graph API Server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(r.URL.Path, "aad-id-graph") {
+			_, _ = w.Write([]byte(`{
+				"mail": "graph-user@raksmart.com",
+				"userPrincipalName": "graph-upn@raksmart.com"
+			}`))
+		} else if strings.Contains(r.URL.Path, "aad-id-upn-only") {
+			_, _ = w.Write([]byte(`{
+				"mail": "",
+				"userPrincipalName": "upn-only@raksmart.com"
+			}`))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	cfg := &config.TeamsConfig{
+		AppID:       "mock-app-id",
+		AppPassword: "mock-password",
+	}
+	graphClient := NewGraphClient(cfg)
+	graphClient.cachedToken = "mock-token"
+	graphClient.expiresAt = time.Now().Add(1 * time.Hour)
+	graphClient.httpClient.Transport = &graphMockRoundTripper{
+		targetURL: server.URL,
+	}
+
+	resolver := NewUserResolver(staticMap, graphClient)
+
+	// 1. Test Static Map Resolution
+	email := resolver.Resolve(ctx, "aad-id-1", "Frank Han")
+	if email != "frank@raksmart.com" {
+		t.Errorf("expected 'frank@raksmart.com', got %q", email)
+	}
+
+	// 2. Test Dynamic Learning (Cache)
+	resolver.Learn("aad-id-learned", "learned@raksmart.com")
+	email = resolver.Resolve(ctx, "aad-id-learned", "Learned User")
+	if email != "learned@raksmart.com" {
+		t.Errorf("expected 'learned@raksmart.com', got %q", email)
+	}
+
+	// 3. Test Graph API mail Resolution
+	email = resolver.Resolve(ctx, "aad-id-graph", "Graph User")
+	if email != "graph-user@raksmart.com" {
+		t.Errorf("expected 'graph-user@raksmart.com', got %q", email)
+	}
+
+	// 4. Test Graph API userPrincipalName Resolution (mail empty)
+	email = resolver.Resolve(ctx, "aad-id-upn-only", "UPN User")
+	if email != "upn-only@raksmart.com" {
+		t.Errorf("expected 'upn-only@raksmart.com', got %q", email)
+	}
+
+	// 5. Test Fallback to Display Name (Warn log triggered)
+	email = resolver.Resolve(ctx, "aad-id-unknown", "Unknown User")
+	if email != "Unknown User" {
+		t.Errorf("expected 'Unknown User', got %q", email)
+	}
+
+	// 6. Test Fallback to AAD ID (Warn log triggered, no display name)
+	email = resolver.Resolve(ctx, "aad-id-unknown", "")
+	if email != "aad-id-unknown" {
+		t.Errorf("expected 'aad-id-unknown', got %q", email)
+	}
+}

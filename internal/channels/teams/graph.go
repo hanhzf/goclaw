@@ -250,3 +250,21 @@ func (g *GraphClient) GetTeamMembers(ctx context.Context, teamID string) ([]Grap
 	u := fmt.Sprintf("%s/groups/%s/members?$select=id,displayName,mail&$top=100", graphBaseURL, teamID)
 	return fetchAllPages[GraphMember](ctx, g, u, 0)
 }
+
+// GetUserEmail retrieves the user's email address by AAD Object ID from Microsoft Graph.
+func (g *GraphClient) GetUserEmail(ctx context.Context, aadObjectID string) (string, error) {
+	u := fmt.Sprintf("%s/users/%s?$select=mail,userPrincipalName", graphBaseURL, aadObjectID)
+	var res struct {
+		Mail              string `json:"mail"`
+		UserPrincipalName string `json:"userPrincipalName"`
+	}
+	if err := g.getJSON(ctx, u, &res); err != nil {
+		return "", err
+	}
+
+	email := res.Mail
+	if email == "" {
+		email = res.UserPrincipalName
+	}
+	return email, nil
+}

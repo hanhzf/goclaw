@@ -25,6 +25,7 @@ type Channel struct {
 	sender        *TeamsSender
 	graph         *GraphClient
 	dedup         *DedupCache
+	resolver      *UserResolver
 	placeholders  sync.Map
 	httpServer    *http.Server
 	stopCh        chan struct{}
@@ -62,6 +63,7 @@ func New(cfg config.TeamsConfig, msgBus *bus.MessageBus, pairingSvc store.Pairin
 	var placeholders sync.Map
 	sender := NewTeamsSender(tokenProvider, &placeholders)
 	graph := NewGraphClient(&cfg)
+	resolver := NewUserResolver(cfg.UserMap, graph)
 
 	ch := &Channel{
 		BaseChannel:   base,
@@ -71,6 +73,7 @@ func New(cfg config.TeamsConfig, msgBus *bus.MessageBus, pairingSvc store.Pairin
 		sender:        sender,
 		graph:         graph,
 		dedup:         dedup,
+		resolver:      resolver,
 		stopCh:        make(chan struct{}),
 	}
 
@@ -182,6 +185,11 @@ func (c *Channel) ListGroupMembers(ctx context.Context, chatID string) ([]channe
 		result[i] = channels.GroupMember{
 			MemberID: m.ID,
 			Name:     name,
+		}
+
+		// Dynamically learn the user's AAD Object ID -> email mapping
+		if m.Mail != "" {
+			c.resolver.Learn(m.ID, m.Mail)
 		}
 
 		// Auto-sync member into contact store

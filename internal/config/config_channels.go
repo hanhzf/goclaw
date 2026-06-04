@@ -214,6 +214,7 @@ type TeamsConfig struct {
 	RequireMention          *bool               `json:"require_mention,omitempty"` // require @bot mention in groups (default true)
 	HistoryLimit            int                 `json:"history_limit,omitempty"`   // max pending group messages for context (default 50, 0=disabled)
 	BlockReply              *bool               `json:"block_reply,omitempty"`     // override gateway block_reply (nil = inherit)
+	UserMap                 map[string]string   `json:"user_map,omitempty"`        // static AAD Object ID -> email mapping
 }
 
 // ProvidersConfig maps provider name to its config.
