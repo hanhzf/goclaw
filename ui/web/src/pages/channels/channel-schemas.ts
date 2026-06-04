@@ -59,6 +59,11 @@ export const credentialsSchema: Record<string, FieldDef[]> = {
     { key: "app_token", label: "App-Level Token", type: "password", required: true, placeholder: "xapp-...", help: "App-Level Token with connections:write scope (required for Socket Mode)" },
     { key: "user_token", label: "User Token (Optional)", type: "password", required: false, placeholder: "xoxp-...", help: "Optional: User OAuth Token for custom bot identity. Leave empty to use default bot identity." },
   ],
+  teams: [
+    { key: "app_id", label: "App ID", type: "text", required: true, placeholder: "Application (client) ID" },
+    { key: "app_password", label: "App Password", type: "password", required: true, placeholder: "Client secret value" },
+    { key: "tenant_id", label: "Tenant ID (Optional)", type: "text", placeholder: "Directory (tenant) ID" },
+  ],
   feishu: [
     { key: "app_id", label: "App ID", type: "text", required: true, placeholder: "cli_xxxxx" },
     { key: "app_secret", label: "App Secret", type: "password", required: true },
@@ -165,6 +170,17 @@ export const configSchema: Record<string, FieldDef[]> = {
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "Lark open_ids (ou_...)" },
     { key: "group_allow_from", label: "Group Allowed Users", type: "tags", help: "Separate allowlist for group senders" },
     { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit", help: "Deliver intermediate text during tool iterations" },
+  ],
+  teams: [
+    { key: "connection_mode", label: "Connection Mode", type: "select", options: [{ value: "webhook", label: "Webhook" }], defaultValue: "webhook" },
+    { key: "webhook_port", label: "Webhook Port", type: "number", defaultValue: 0, help: "0 = share main gateway port (recommended)" },
+    { key: "webhook_path", label: "Webhook Path", type: "text", defaultValue: "/api/messages/teams", help: "Mount path on the main gateway" },
+    { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "pairing" },
+    { key: "group_policy", label: "Group Policy", type: "select", options: groupPolicyOptions, defaultValue: "pairing" },
+    { key: "require_mention", label: "Require @mention in groups", type: "boolean", defaultValue: true },
+    { key: "history_limit", label: "Group History Limit", type: "number", defaultValue: 50 },
+    { key: "allow_from", label: "Allowed Users (UPN or Object ID)", type: "tags", help: "Allowed senders; empty = no restriction" },
+    { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit" },
   ],
   zalo_oa: [
     { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "pairing" },

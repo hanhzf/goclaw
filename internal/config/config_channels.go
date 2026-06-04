@@ -20,6 +20,7 @@ type ChannelsConfig struct {
 	Zalo              ZaloConfig               `json:"zalo"`
 	ZaloPersonal      ZaloPersonalConfig       `json:"zalo_personal"`
 	Feishu            FeishuConfig             `json:"feishu"`
+	Teams             TeamsConfig              `json:"teams"`
 	PendingCompaction *PendingCompactionConfig `json:"pending_compaction,omitempty"` // global pending message compaction settings
 }
 
@@ -192,6 +193,27 @@ type FeishuConfig struct {
 	STTTenantID       string              `json:"stt_tenant_id,omitempty"`
 	STTTimeoutSeconds int                 `json:"stt_timeout_seconds,omitempty"`
 	VoiceAgentID      string              `json:"voice_agent_id,omitempty"`
+}
+
+type TeamsConfig struct {
+	Enabled                 bool                `json:"enabled"`
+	AppID                   string              `json:"app_id"`
+	AppPassword             string              `json:"app_password"`
+	TenantID                string              `json:"tenant_id,omitempty"`
+	AuthType                string              `json:"auth_type,omitempty"` // "secret" | "federated"
+	CertificatePath         string              `json:"certificate_path,omitempty"`
+	UseManagedIdentity      bool                `json:"use_managed_identity,omitempty"`
+	ManagedIdentityClientID string              `json:"managed_identity_client_id,omitempty"`
+	ConnectionMode          string              `json:"connection_mode,omitempty"` // "webhook"
+	WebhookPort             int                 `json:"webhook_port,omitempty"`
+	WebhookPath             string              `json:"webhook_path,omitempty"` // default "/api/messages/teams"
+	AllowFrom               FlexibleStringSlice `json:"allow_from"`
+	GroupAllowFrom          FlexibleStringSlice `json:"group_allow_from,omitempty"`
+	DMPolicy                string              `json:"dm_policy,omitempty"`       // "pairing", "open", "allowlist", "disabled"
+	GroupPolicy             string              `json:"group_policy,omitempty"`    // "pairing", "open", "allowlist", "disabled"
+	RequireMention          *bool               `json:"require_mention,omitempty"` // require @bot mention in groups (default true)
+	HistoryLimit            int                 `json:"history_limit,omitempty"`   // max pending group messages for context (default 50, 0=disabled)
+	BlockReply              *bool               `json:"block_reply,omitempty"`     // override gateway block_reply (nil = inherit)
 }
 
 // ProvidersConfig maps provider name to its config.
